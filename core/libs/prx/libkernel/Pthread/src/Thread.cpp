@@ -3,6 +3,7 @@
 #include "../include/WindowsThreadLocal.hpp"
 #include "../include/Cancel.hpp"
 #include "prx/libc/include/General.hpp"
+#include "prx/libc/include/general/AsmMacros.hpp"
 #include "prx/libkernel/KernelErrors.hpp"
 #include "prx/libc/include/CpuTopology.hpp"
 #include "prx/libkernel/DirectMemory/DirectMemory.hpp"
@@ -545,6 +546,31 @@ void ThreadCancel::EndWait() {
     BeginWait(nullptr);
 }
 
+extern "C" void* APS5_VABI Aps5CallGuestEntry_nid_no_patch(PthreadEntry entry, void* arg);
+
+asm(".text\n"
+    APS5_ASM_FUNCTION("Aps5CallGuestEntry_nid_no_patch") R"(
+    .cfi_startproc
+    push %rbp
+    .cfi_adjust_cfa_offset 8
+    .cfi_rel_offset %rbp, 0
+    push $0
+    .cfi_adjust_cfa_offset 8
+    push $0
+    .cfi_adjust_cfa_offset 8
+    mov %rsp, %rbp
+    mov %rdi, %rax
+    mov %rsi, %rdi
+    call *%rax
+    add $16, %rsp
+    .cfi_adjust_cfa_offset -16
+    pop %rbp
+    .cfi_adjust_cfa_offset -8
+    .cfi_restore %rbp
+    ret
+    .cfi_endproc
+)" APS5_ASM_FUNCTION_END("Aps5CallGuestEntry_nid_no_patch"));
+
 static void RunThread(std::unique_ptr<ThreadArgs> args) {
     APS5_LOG_OUT("RunThread entry=0x%llx arg=%p self=%p", static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(args->entry)), args->arg, static_cast<void*>(args->self));
     const auto entry = args->entry;
@@ -561,7 +587,7 @@ static void RunThread(std::unique_ptr<ThreadArgs> args) {
 #ifndef _WIN32
     pthread_sigmask(SIG_SETMASK, &signalMask, nullptr);
 #endif
-    finishThread(self, entry(arg));
+    finishThread(self, Aps5CallGuestEntry_nid_no_patch(entry, arg));
     CurrentGuestState().current = nullptr;
 }
 
@@ -828,7 +854,9 @@ int APS5_VABI scePthreadCreate(Pthread* thread, const PthreadAttr* attr, Pthread
     return SCE_OK;
 }
 
-int APS5_VABI scePthreadJoin(Pthread thread, void** retval) {
+}
+
+int JoinGuestThread_nid_no_patch(Pthread thread, void** retval, std::optional<std::uint64_t> deadlineNanos) {
     if (!thread) return SCE_KERNEL_ERROR_EINVAL;
     if (thread == CurrentGuestState().current) return SCE_KERNEL_ERROR_EDEADLK;
     if (thread->_detached) return SCE_KERNEL_ERROR_EINVAL;
@@ -836,7 +864,8 @@ int APS5_VABI scePthreadJoin(Pthread thread, void** retval) {
     ThreadCancel::Check();
     {
         std::unique_lock lock(thread->_join_mtx);
-        ThreadCancel::WaitUntil(thread->_join_cv, lock, std::nullopt, [&] { return thread->_finished.load(); });
+        if (!ThreadCancel::WaitUntil(thread->_join_cv, lock, deadlineNanos, [&] { return thread->_finished.load(); }))
+            return SCE_KERNEL_ERROR_ETIMEDOUT;
     }
     if (thread->_joined.exchange(true, std::memory_order_acq_rel)) return SCE_KERNEL_ERROR_ESRCH;
 #ifdef _WIN32
@@ -851,6 +880,12 @@ int APS5_VABI scePthreadJoin(Pthread thread, void** retval) {
 #endif
     RetainJoinedThread(thread);
     return SCE_OK;
+}
+
+extern "C" {
+
+int APS5_VABI scePthreadJoin(Pthread thread, void** retval) {
+    return JoinGuestThread_nid_no_patch(thread, retval, std::nullopt);
 }
 
 int APS5_VABI scePthreadDetach(Pthread thread) {

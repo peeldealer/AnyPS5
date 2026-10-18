@@ -8,6 +8,7 @@
 #include "../include/Pthread.hpp"
 #include "Common.hpp"
 #include "prx/libkernel/KernelErrors.hpp"
+#include "prx/libkernel/Time/include/TimedWait.hpp"
 #include <atomic>
 #include <chrono>
 #include <cstring>
@@ -223,6 +224,14 @@ int APS5_VABI pthread_setaffinity_np_nid_postfix(Pthread thread, std::size_t cpu
 
 int APS5_VABI pthread_join_nid_postfix(Pthread thread, void** value) {
     return PosixThread::ToErrno(scePthreadJoin(thread, value));
+}
+
+int APS5_VABI pthread_timedjoin_np_nid_postfix(Pthread thread, void** value, const KernelTimespec* abstime) {
+    constexpr int GuestClockRealtime = 0;
+    KernelUseconds usec = 0;
+    if (!abstime || abstime->tv_sec < 0 || !PosixThread::RelativeMicroseconds(GuestClockRealtime, abstime, &usec))
+        return PosixThread::GUEST_EINVAL;
+    return PosixThread::ToErrno(JoinGuestThread_nid_no_patch(thread, value, TimedWait::DeadlineNanos(usec)));
 }
 
 int APS5_VABI pthread_rename_np_nid_postfix(Pthread thread, const char* name) {

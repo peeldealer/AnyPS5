@@ -19,6 +19,7 @@
 
 #ifndef _WIN32
 #include <pthread.h>
+#include <optional>
 #endif
 
 enum class MutexType : std::uint32_t {
@@ -163,6 +164,7 @@ bool GuestThreadCpuNanos(int cpuClockThread, std::uint64_t* nanos);
 void SetLiveGuestThreadsAffinity(KernelCpumask mask);
 KernelCpumask LiveGuestThreadsAffinity();
 bool GuestThreadIsLive(const PthreadPrivate* thread);
+int JoinGuestThread_nid_no_patch(Pthread thread, void** retval, std::optional<std::uint64_t> deadlineNanos);
 bool LiveGuestThreadExists(std::int64_t tid);
 bool GetLiveGuestThreadAffinity_nid_no_patch(std::int64_t tid, KernelCpumask& mask);
 bool SetLiveGuestThreadAffinity_nid_no_patch(std::int64_t tid, KernelCpumask mask);

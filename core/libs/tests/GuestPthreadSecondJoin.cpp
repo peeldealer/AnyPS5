@@ -10,6 +10,8 @@ int APS5_VABI scePthreadCreate(Pthread* thread, const PthreadAttr* attr, Pthread
 int APS5_VABI scePthreadJoin(Pthread thread, void** retval);
 int APS5_VABI scePthreadDetach(Pthread thread);
 int APS5_VABI pthread_join_nid_postfix(Pthread thread, void** retval);
+int APS5_VABI pthread_timedjoin_np_nid_postfix(Pthread thread, void** retval, const KernelTimespec* abstime);
+int APS5_VABI clock_gettime_nid_postfix(int clockId, KernelTimespec* tp);
 }
 
 static constexpr int SCE_OK = 0;
@@ -30,7 +32,52 @@ static void* APS5_VABI WaitForRelease(void* arg) {
     return nullptr;
 }
 
+static KernelTimespec RealtimeAfter(std::int64_t milliseconds) {
+    KernelTimespec now{};
+    Require(clock_gettime_nid_postfix(0, &now) == 0);
+    std::int64_t nanoseconds = now.tv_nsec + milliseconds % 1000 * 1000000;
+    KernelTimespec deadline{now.tv_sec + milliseconds / 1000 + nanoseconds / 1000000000, nanoseconds % 1000000000};
+    return deadline;
+}
+
+static void CheckTimedJoin() {
+    constexpr int GuestEinval = 22;
+    constexpr int GuestEtimedout = 60;
+    static std::atomic<bool> release{false};
+    Pthread thread = nullptr;
+    void* result = reinterpret_cast<void*>(std::uintptr_t{0x77});
+    Require(scePthreadCreate(&thread, nullptr, WaitForRelease, &release, "timed-join") == SCE_OK);
+    Require(pthread_timedjoin_np_nid_postfix(thread, &result, nullptr) == GuestEinval);
+    const KernelTimespec badNanoseconds{1, 1000000000};
+    const KernelTimespec negativeNanoseconds{1, -1};
+    const KernelTimespec negativeSeconds{-1, 0};
+    Require(pthread_timedjoin_np_nid_postfix(thread, &result, &badNanoseconds) == GuestEinval);
+    Require(pthread_timedjoin_np_nid_postfix(thread, &result, &negativeNanoseconds) == GuestEinval);
+    Require(pthread_timedjoin_np_nid_postfix(thread, &result, &negativeSeconds) == GuestEinval);
+    const KernelTimespec past{1, 0};
+    Require(pthread_timedjoin_np_nid_postfix(thread, &result, &past) == GuestEtimedout);
+    const KernelTimespec soon = RealtimeAfter(50);
+    Require(pthread_timedjoin_np_nid_postfix(thread, &result, &soon) == GuestEtimedout);
+    Require(result == reinterpret_cast<void*>(std::uintptr_t{0x77}));
+    release.store(true);
+    const KernelTimespec later = RealtimeAfter(10000);
+    Require(pthread_timedjoin_np_nid_postfix(thread, &result, &later) == 0 && result == nullptr);
+    Require(pthread_timedjoin_np_nid_postfix(thread, &result, &later) == GUEST_ESRCH);
+    Require(pthread_join_nid_postfix(thread, &result) == GUEST_ESRCH);
+
+    Pthread done = nullptr;
+    Require(scePthreadCreate(&done, nullptr, Finish, nullptr, "timed-join-done") == SCE_OK);
+    while (true) {
+        const KernelTimespec tick = RealtimeAfter(20);
+        const int joined = pthread_timedjoin_np_nid_postfix(done, &result, &tick);
+        if (joined == 0) break;
+        Require(joined == GuestEtimedout);
+    }
+    Require(result == reinterpret_cast<void*>(std::uintptr_t{0x1234}));
+}
+
 int main() {
+    CheckTimedJoin();
     Pthread thread = nullptr;
     void* result = nullptr;
     Require(scePthreadCreate(&thread, nullptr, Finish, nullptr, "second-join") == SCE_OK);
