@@ -214,4 +214,12 @@ const char* APS5_VABI __inet_ntop_nid_postfix(int family, const void* source,
     std::memcpy(destination, text, length + 1);
     return destination;
 }
+
+std::uint32_t APS5_VABI htonl_nid_postfix(std::uint32_t value) {
+    return (value << 24) | ((value << 8) & 0x00FF0000u) | ((value >> 8) & 0x0000FF00u) | (value >> 24);
+}
+
+std::uint16_t APS5_VABI htons_nid_postfix(std::uint16_t value) {
+    return static_cast<std::uint16_t>((value << 8) | (value >> 8));
+}
 }

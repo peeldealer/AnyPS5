@@ -8,9 +8,22 @@ extern "C" {
 int APS5_VABI __inet_pton_nid_postfix(int, const char*, void*);
 const char* APS5_VABI __inet_ntop_nid_postfix(int, const void*, char*, std::uint32_t);
 int* APS5_VABI __error_nid_postfix();
+std::uint32_t APS5_VABI htonl_nid_postfix(std::uint32_t);
+std::uint16_t APS5_VABI htons_nid_postfix(std::uint16_t);
 }
 static void Require(bool value) { if (!value) std::abort(); }
 int main() {
+    Require(htonl_nid_postfix(0x01020304u) == 0x04030201u);
+    Require(htonl_nid_postfix(0xC0000211u) == 0x110200C0u);
+    Require(htonl_nid_postfix(0u) == 0u && htonl_nid_postfix(0xFFFFFFFFu) == 0xFFFFFFFFu);
+    Require(htonl_nid_postfix(htonl_nid_postfix(0x89ABCDEFu)) == 0x89ABCDEFu);
+    Require(htons_nid_postfix(0x0102u) == 0x0201u);
+    Require(htons_nid_postfix(80u) == 0x5000u && htons_nid_postfix(0xFF00u) == 0x00FFu);
+    Require(htons_nid_postfix(htons_nid_postfix(0xBEEFu)) == 0xBEEFu);
+    const std::uint32_t network = htonl_nid_postfix(0xC0000211u);
+    unsigned char bytes[4]{};
+    std::memcpy(bytes, &network, sizeof(bytes));
+    Require(bytes[0] == 0xC0 && bytes[1] == 0x00 && bytes[2] == 0x02 && bytes[3] == 0x11);
     for (int family : {2, 28}) {
         const char* input = family == 2 ? "192.0.2.17" : "2001:db8::17";
         std::array<unsigned char, 16> address{};
