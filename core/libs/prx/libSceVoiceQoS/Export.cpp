@@ -4,6 +4,8 @@
 #include <limits>
 #include <map>
 #include <mutex>
+#include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 #include "SceTypes.hpp"
@@ -163,9 +165,18 @@ int APS5_VABI sceVoiceQoSWritePacket() {
  return 0;
 }
 
-int APS5_VABI sceVoiceQoSGetLocalEndpointAttribute() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
+int APS5_VABI sceVoiceQoSGetLocalEndpointAttribute(int32_t localId, int32_t attributeId, void* value, int32_t size) {
+    return Locked([&](QoS& qos) {
+        const auto endpoint = qos.locals.find(localId);
+        if (endpoint == qos.locals.end() || !value) return SCE_VOICE_ERROR_LIBVOICEQOS_ARGUMENT_INVALID;
+        const auto attribute = endpoint->second.find(attributeId);
+        if (attribute == endpoint->second.end())
+            throw std::runtime_error("sceVoiceQoSGetLocalEndpointAttribute: attribute " + std::to_string(attributeId) + " was never set and its default is unknown");
+        if (attribute->second.size() != static_cast<std::size_t>(size > 0 ? size : 0))
+            throw std::runtime_error("sceVoiceQoSGetLocalEndpointAttribute: size " + std::to_string(size) + " differs from the " + std::to_string(attribute->second.size()) + " stored bytes");
+        if (!attribute->second.empty()) std::memcpy(value, attribute->second.data(), attribute->second.size());
+        return 0;
+    });
 }
 
 }
