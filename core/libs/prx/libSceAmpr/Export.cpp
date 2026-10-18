@@ -954,10 +954,7 @@ void APS5_VABI _ZNSt4_Pad7_LaunchEPP7pthread_nid_postfix(GuestPad* pad, Pthread*
     if (created != 0) ThrowCppError_nid_no_patch(CppResourceUnavailableTryAgain);
     while (!pad->started) RequireThrd(_Cnd_wait_nid_postfix(&pad->condition, &pad->mutex), "_Pad::_Launch: _Cnd_wait");
 }
-int APS5_VABI _ZNSt7num_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE2idE_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
+std::uint64_t _ZNSt7num_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE2idE_nid_postfix = 0;
 
 void APS5_VABI _Unlock_shared_ptr_spin_lock_nid_postfix(void) {
     sharedPtrSpinLock.clear(std::memory_order_release);
@@ -977,10 +974,7 @@ int APS5_VABI _ZNKSt8time_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE3get
     return 0;
 }
 
-int APS5_VABI _ZNSt8time_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE2idE_nid_postfix(void) {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
+std::uint64_t _ZNSt8time_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE2idE_nid_postfix = 0;
 
 int APS5_VABI _ZNSt8time_getIcSt19istreambuf_iteratorIcSt11char_traitsIcEEE7_GetcatEPPKNSt6locale5facetEPKS5__nid_postfix(void) {
     NotImplemented_nid_no_patch(__func__);
