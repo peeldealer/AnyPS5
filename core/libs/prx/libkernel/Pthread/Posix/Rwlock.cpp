@@ -84,6 +84,18 @@ int APS5_VABI pthread_rwlock_timedrdlock_nid_postfix(PthreadRwlock* rwlock, cons
     return toPosix(scePthreadRwlockTimedrdlock(rwlock, usec));
 }
 
+int APS5_VABI pthread_rwlock_reltimedrdlock_np_nid_postfix(PthreadRwlock* rwlock, std::uint32_t usec) {
+    initializeStatic(rwlock, __func__);
+    if (scePthreadRwlockTryrdlock(rwlock) == 0) return 0;
+    return toPosix(scePthreadRwlockTimedrdlock(rwlock, static_cast<KernelUseconds>(usec)));
+}
+
+int APS5_VABI pthread_rwlock_reltimedwrlock_np_nid_postfix(PthreadRwlock* rwlock, std::uint32_t usec) {
+    initializeStatic(rwlock, __func__);
+    if (scePthreadRwlockTrywrlock(rwlock) == 0) return 0;
+    return toPosix(scePthreadRwlockTimedwrlock(rwlock, static_cast<KernelUseconds>(usec)));
+}
+
 int APS5_VABI pthread_rwlock_timedwrlock_nid_postfix(PthreadRwlock* rwlock, const KernelTimespec* abstime) {
     if (!abstime) return pthread_rwlock_wrlock_nid_postfix(rwlock);
     initializeStatic(rwlock, __func__);

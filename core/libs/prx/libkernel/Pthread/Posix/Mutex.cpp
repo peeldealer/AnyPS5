@@ -6,6 +6,7 @@
 #include "../include/Mutex.hpp"
 #include "Common.hpp"
 #include <atomic>
+#include <limits>
 #include <stdexcept>
 #include <string>
 
@@ -67,6 +68,13 @@ int APS5_VABI pthread_mutex_timedlock_nid_postfix(PthreadMutex* mutex, const Ker
     KernelUseconds usec = 0;
     if (!PosixThread::RelativeMicroseconds(GUEST_REALTIME_CLOCK, abstime, &usec)) return POSIX_EINVAL;
     return PosixThread::ToErrno(scePthreadMutexTimedlock(mutex, usec));
+}
+
+int APS5_VABI pthread_mutex_reltimedlock_np_nid_postfix(PthreadMutex* mutex, std::uint64_t usec) {
+    _initializeStatic(mutex, __func__);
+    if (scePthreadMutexTrylock(mutex) == 0) return 0;
+    constexpr std::uint64_t maximum = std::numeric_limits<KernelUseconds>::max();
+    return PosixThread::ToErrno(scePthreadMutexTimedlock(mutex, static_cast<KernelUseconds>(usec < maximum ? usec : maximum)));
 }
 
 int APS5_VABI pthread_mutex_trylock_nid_postfix(PthreadMutex* mutex) {
