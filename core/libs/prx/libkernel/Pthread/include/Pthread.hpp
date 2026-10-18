@@ -19,6 +19,7 @@
 
 #ifndef _WIN32
 #include <pthread.h>
+#include <optional>
 #endif
 
 enum class MutexType : std::uint32_t {
@@ -41,6 +42,8 @@ struct PthreadMutexPrivate {
     MutexType _type;
     std::atomic<std::thread::id> _owner;
     int _count;
+    std::optional<int> _spinloops;
+    std::optional<int> _yieldloops;
 
     PthreadMutexPrivate() : _type(MutexType::ErrorCheck), _owner(std::thread::id{}), _count(0) {}
 };

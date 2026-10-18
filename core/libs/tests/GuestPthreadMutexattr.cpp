@@ -18,6 +18,11 @@ int APS5_VABI pthread_mutex_init_nid_postfix(PthreadMutex* mutex, const PthreadM
 int APS5_VABI pthread_mutex_lock_nid_postfix(PthreadMutex* mutex);
 int APS5_VABI pthread_mutex_unlock_nid_postfix(PthreadMutex* mutex);
 int APS5_VABI pthread_mutex_destroy_nid_postfix(PthreadMutex* mutex);
+int APS5_VABI pthread_mutex_isowned_np_nid_postfix(PthreadMutex* mutex);
+int APS5_VABI pthread_mutex_getspinloops_np_nid_postfix(PthreadMutex* mutex, int* count);
+int APS5_VABI pthread_mutex_setspinloops_np_nid_postfix(PthreadMutex* mutex, int count);
+int APS5_VABI pthread_mutex_getyieldloops_np_nid_postfix(PthreadMutex* mutex, int* count);
+int APS5_VABI pthread_mutex_setyieldloops_np_nid_postfix(PthreadMutex* mutex, int count);
 int APS5_VABI pthread_mutex_timedlock_nid_postfix(PthreadMutex* mutex, const KernelTimespec* abstime);
 int APS5_VABI scePthreadCreate(Pthread* thread, const PthreadAttr* attr, PthreadEntry entry, void* arg, const char* name);
 int APS5_VABI scePthreadJoin(Pthread thread, void** retval);
@@ -112,6 +117,55 @@ static void CheckProcessSharing() {
     Require(pthread_mutexattr_setpshared_nid_postfix(&attr, 0) == GUEST_EINVAL);
 }
 
+static void* APS5_VABI ReportOwnership(void* arg) {
+    return reinterpret_cast<void*>(static_cast<std::intptr_t>(pthread_mutex_isowned_np_nid_postfix(static_cast<PthreadMutex*>(arg))));
+}
+
+static void CheckOwnershipAndLoops() {
+    PthreadMutex mutex = nullptr;
+    int count = -1;
+    Require(pthread_mutex_isowned_np_nid_postfix(&mutex) == 0 && mutex == nullptr);
+    Require(pthread_mutex_getspinloops_np_nid_postfix(&mutex, &count) == 0 && count == 0 && mutex != nullptr);
+    Require(pthread_mutex_isowned_np_nid_postfix(&mutex) == 0);
+    Require(pthread_mutex_lock_nid_postfix(&mutex) == 0);
+    Require(pthread_mutex_isowned_np_nid_postfix(&mutex) == 1);
+    Pthread thread{};
+    void* result = reinterpret_cast<void*>(std::intptr_t{7});
+    Require(scePthreadCreate(&thread, nullptr, ReportOwnership, &mutex, nullptr) == 0);
+    Require(scePthreadJoin(thread, &result) == 0 && result == nullptr);
+    Require(pthread_mutex_unlock_nid_postfix(&mutex) == 0);
+    Require(pthread_mutex_isowned_np_nid_postfix(&mutex) == 0);
+    Require(pthread_mutex_setspinloops_np_nid_postfix(&mutex, 37) == 0);
+    Require(pthread_mutex_getspinloops_np_nid_postfix(&mutex, &count) == 0 && count == 37);
+    Require(pthread_mutex_setspinloops_np_nid_postfix(&mutex, -1) == 0);
+    Require(pthread_mutex_getspinloops_np_nid_postfix(&mutex, &count) == 0 && count == -1);
+    Require(pthread_mutex_getyieldloops_np_nid_postfix(&mutex, &count) == 0 && count == 0);
+    Require(pthread_mutex_setyieldloops_np_nid_postfix(&mutex, 5) == 0);
+    Require(pthread_mutex_getyieldloops_np_nid_postfix(&mutex, &count) == 0 && count == 5);
+    Require(Throws([&] { pthread_mutex_getspinloops_np_nid_postfix(&mutex, nullptr); }));
+    Require(Throws([&] { pthread_mutex_getyieldloops_np_nid_postfix(&mutex, nullptr); }));
+    Require(pthread_mutex_destroy_nid_postfix(&mutex) == 0);
+    Require(pthread_mutex_isowned_np_nid_postfix(&mutex) == 0);
+    Require(pthread_mutex_getspinloops_np_nid_postfix(&mutex, &count) == GUEST_EINVAL);
+    Require(pthread_mutex_setspinloops_np_nid_postfix(&mutex, 1) == GUEST_EINVAL);
+    Require(pthread_mutex_getyieldloops_np_nid_postfix(&mutex, &count) == GUEST_EINVAL);
+    Require(pthread_mutex_setyieldloops_np_nid_postfix(&mutex, 1) == GUEST_EINVAL);
+
+    PthreadMutexattr attr = nullptr;
+    Require(pthread_mutexattr_init_nid_postfix(&attr) == 0);
+    Require(pthread_mutexattr_settype_nid_postfix(&attr, 4) == 0);
+    PthreadMutex adaptive = nullptr;
+    Require(pthread_mutex_init_nid_postfix(&adaptive, &attr) == 0);
+    Require(pthread_mutex_getspinloops_np_nid_postfix(&adaptive, &count) == 0 && count == 2000);
+    Require(pthread_mutex_getyieldloops_np_nid_postfix(&adaptive, &count) == 0 && count == 0);
+    Require(pthread_mutex_destroy_nid_postfix(&adaptive) == 0);
+    Require(pthread_mutexattr_destroy_nid_postfix(&attr) == 0);
+    PthreadMutex adaptiveStatic = reinterpret_cast<PthreadMutex>(std::uintptr_t{1});
+    Require(pthread_mutex_isowned_np_nid_postfix(&adaptiveStatic) == 0);
+    Require(pthread_mutex_getspinloops_np_nid_postfix(&adaptiveStatic, &count) == 0 && count == 2000);
+    Require(pthread_mutex_destroy_nid_postfix(&adaptiveStatic) == 0);
+}
+
 static void CheckInvalidPriorityAttribute(PthreadMutexattr* attr) {
     int ceiling = -1;
     Require(pthread_mutexattr_setprotocol_nid_postfix(attr, PRIO_PROTECT) == GUEST_EINVAL);
@@ -125,6 +179,7 @@ int main() {
     CheckType();
     CheckProcessSharing();
     CheckTimedlockInvalidDeadline();
+    CheckOwnershipAndLoops();
     PthreadMutexattr attr = nullptr;
     CheckInvalidPriorityAttribute(nullptr);
     CheckInvalidPriorityAttribute(&attr);

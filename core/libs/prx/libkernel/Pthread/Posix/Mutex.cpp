@@ -8,6 +8,7 @@
 #include <atomic>
 #include <stdexcept>
 #include <string>
+#include <thread>
 
 namespace {
 
@@ -17,6 +18,8 @@ constexpr int GUEST_REALTIME_CLOCK = 0;
 constexpr int POSIX_PRIO_PROTECT = 2;
 constexpr int POSIX_SCHED_RR = 3;
 constexpr std::uintptr_t POSIX_ADAPTIVE_MUTEX_INITIALIZER = 1;
+constexpr std::uintptr_t POSIX_DESTROYED_MUTEX = 2;
+constexpr int POSIX_ADAPTIVE_SPINLOOPS = 2000;
 
 bool _isStaticInitializer(PthreadMutex mutex) {
     const auto value = reinterpret_cast<std::uintptr_t>(mutex);
@@ -34,6 +37,13 @@ void _initializeStatic(PthreadMutex* mutex, const char* funcName) {
         delete created;
 }
 
+PthreadMutex _initializedOrDestroyed(PthreadMutex* mutex, const char* funcName) {
+    if (!mutex) throw std::runtime_error(std::string(funcName) + ": null mutex");
+    if (reinterpret_cast<std::uintptr_t>(std::atomic_ref<PthreadMutex>(*mutex).load(std::memory_order_acquire)) == POSIX_DESTROYED_MUTEX) return nullptr;
+    _initializeStatic(mutex, funcName);
+    return std::atomic_ref<PthreadMutex>(*mutex).load(std::memory_order_acquire);
+}
+
 }
 
 extern "C" {
@@ -47,6 +57,43 @@ int APS5_VABI pthread_mutex_destroy_nid_postfix(PthreadMutex* mutex) {
         return 0;
     }
     return PosixThread::ToErrno(scePthreadMutexDestroy(mutex));
+}
+
+int APS5_VABI pthread_mutex_isowned_np_nid_postfix(PthreadMutex* mutex) {
+    if (!mutex) throw std::runtime_error("pthread_mutex_isowned_np: null mutex");
+    const PthreadMutex current = std::atomic_ref<PthreadMutex>(*mutex).load(std::memory_order_acquire);
+    if (_isStaticInitializer(current) || reinterpret_cast<std::uintptr_t>(current) == POSIX_DESTROYED_MUTEX) return 0;
+    return current->_owner.load(std::memory_order_acquire) == std::this_thread::get_id() ? 1 : 0;
+}
+
+int APS5_VABI pthread_mutex_getspinloops_np_nid_postfix(PthreadMutex* mutex, int* count) {
+    const PthreadMutex current = _initializedOrDestroyed(mutex, __func__);
+    if (!current) return POSIX_EINVAL;
+    if (!count) throw std::runtime_error("pthread_mutex_getspinloops_np: null count");
+    *count = current->_spinloops.value_or(current->_type == MutexType::Adaptive ? POSIX_ADAPTIVE_SPINLOOPS : 0);
+    return 0;
+}
+
+int APS5_VABI pthread_mutex_setspinloops_np_nid_postfix(PthreadMutex* mutex, int count) {
+    const PthreadMutex current = _initializedOrDestroyed(mutex, __func__);
+    if (!current) return POSIX_EINVAL;
+    current->_spinloops = count;
+    return 0;
+}
+
+int APS5_VABI pthread_mutex_getyieldloops_np_nid_postfix(PthreadMutex* mutex, int* count) {
+    const PthreadMutex current = _initializedOrDestroyed(mutex, __func__);
+    if (!current) return POSIX_EINVAL;
+    if (!count) throw std::runtime_error("pthread_mutex_getyieldloops_np: null count");
+    *count = current->_yieldloops.value_or(0);
+    return 0;
+}
+
+int APS5_VABI pthread_mutex_setyieldloops_np_nid_postfix(PthreadMutex* mutex, int count) {
+    const PthreadMutex current = _initializedOrDestroyed(mutex, __func__);
+    if (!current) return POSIX_EINVAL;
+    current->_yieldloops = count;
+    return 0;
 }
 
 int APS5_VABI pthread_mutex_init_nid_postfix(PthreadMutex* mutex, const PthreadMutexattr* attr) {
