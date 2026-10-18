@@ -854,7 +854,9 @@ int APS5_VABI scePthreadCreate(Pthread* thread, const PthreadAttr* attr, Pthread
     return SCE_OK;
 }
 
-int APS5_VABI scePthreadJoin(Pthread thread, void** retval) {
+}
+
+int JoinGuestThread_nid_no_patch(Pthread thread, void** retval, std::optional<std::uint64_t> deadlineNanos) {
     if (!thread) return SCE_KERNEL_ERROR_EINVAL;
     if (thread == CurrentGuestState().current) return SCE_KERNEL_ERROR_EDEADLK;
     if (thread->_detached) return SCE_KERNEL_ERROR_EINVAL;
@@ -862,7 +864,8 @@ int APS5_VABI scePthreadJoin(Pthread thread, void** retval) {
     ThreadCancel::Check();
     {
         std::unique_lock lock(thread->_join_mtx);
-        ThreadCancel::WaitUntil(thread->_join_cv, lock, std::nullopt, [&] { return thread->_finished.load(); });
+        if (!ThreadCancel::WaitUntil(thread->_join_cv, lock, deadlineNanos, [&] { return thread->_finished.load(); }))
+            return SCE_KERNEL_ERROR_ETIMEDOUT;
     }
     if (thread->_joined.exchange(true, std::memory_order_acq_rel)) return SCE_KERNEL_ERROR_ESRCH;
 #ifdef _WIN32
@@ -877,6 +880,12 @@ int APS5_VABI scePthreadJoin(Pthread thread, void** retval) {
 #endif
     RetainJoinedThread(thread);
     return SCE_OK;
+}
+
+extern "C" {
+
+int APS5_VABI scePthreadJoin(Pthread thread, void** retval) {
+    return JoinGuestThread_nid_no_patch(thread, retval, std::nullopt);
 }
 
 int APS5_VABI scePthreadDetach(Pthread thread) {
