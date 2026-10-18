@@ -14,6 +14,7 @@ int APS5_VABI sceVoiceQoSConnect(std::int32_t*, std::int32_t, std::int32_t);
 int APS5_VABI sceVoiceQoSDisconnect(std::int32_t);
 int APS5_VABI sceVoiceQoSSetLocalEndpointAttribute(std::int32_t, std::int32_t, const void*, std::int32_t);
 int APS5_VABI sceVoiceQoSSetRemoteEndpointAttribute(std::int32_t, std::int32_t, const void*, std::int32_t);
+int APS5_VABI sceVoiceQoSSetConnectionAttribute(std::int32_t, std::int32_t, const void*, std::int32_t);
 }
 
 static void Require(bool value) { if (!value) std::abort(); }
@@ -70,7 +71,16 @@ int main(int argc, char** argv) {
     Require(sceVoiceQoSSetRemoteEndpointAttribute(remote, 3, &level, -1) == 0);
     Require(sceVoiceQoSSetRemoteEndpointAttribute(remote + 100, 3, &level, sizeof(level)) == argumentInvalid);
 
+    Require(sceVoiceQoSSetConnectionAttribute(connection, 3, &level, sizeof(level)) == 0);
+    Require(sceVoiceQoSSetConnectionAttribute(connection, 3, nullptr, sizeof(level)) == argumentInvalid);
+    Require(sceVoiceQoSSetConnectionAttribute(connection, 3, &level, 0) == 0);
+    Require(sceVoiceQoSSetConnectionAttribute(connection, 3, &level, -1) == 0);
+    Require(sceVoiceQoSSetConnectionAttribute(connection + 100, 3, &level, sizeof(level)) == argumentInvalid);
+    Require(sceVoiceQoSSetConnectionAttribute(duplicate, 3, &level, sizeof(level)) == argumentInvalid);
+    Require(sceVoiceQoSSetConnectionAttribute(local, 3, &level, sizeof(level)) == argumentInvalid);
+
     Require(sceVoiceQoSDisconnect(connection) == 0);
+    Require(sceVoiceQoSSetConnectionAttribute(connection, 3, &level, sizeof(level)) == argumentInvalid);
     Require(sceVoiceQoSDisconnect(connection) == argumentInvalid);
     Require(sceVoiceQoSDeleteLocalEndpoint(local) == 0);
     Require(sceVoiceQoSDeleteLocalEndpoint(local) == argumentInvalid);
@@ -82,6 +92,7 @@ int main(int argc, char** argv) {
     Require(sceVoiceQoSDeleteRemoteEndpoint(remote) == notInitialized);
     Require(sceVoiceQoSCreateLocalEndpoint(&local, 1, 0, 0) == notInitialized);
     Require(sceVoiceQoSSetRemoteEndpointAttribute(remote, 3, &level, sizeof(level)) == notInitialized);
+    Require(sceVoiceQoSSetConnectionAttribute(connection, 3, &level, sizeof(level)) == notInitialized);
     Require(sceVoiceQoSInit(memory.data(), 0x40000, appType) == 0);
     Require(sceVoiceQoSDeleteRemoteEndpoint(remote) == argumentInvalid);
     Require(sceVoiceQoSEnd() == 0);
