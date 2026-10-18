@@ -12,6 +12,7 @@ int APS5_VABI scePthreadAttrInit(PthreadAttr* attr);
 int APS5_VABI scePthreadAttrDestroy(PthreadAttr* attr);
 int APS5_VABI scePthreadAttrSetstacksize(PthreadAttr* attr, std::size_t stacksize);
 int APS5_VABI scePthreadAttrSetstack(PthreadAttr* attr, void* addr, std::size_t size);
+int APS5_VABI scePthreadAttrSetstackaddr(PthreadAttr* attr, void* addr);
 int APS5_VABI scePthreadAttrSetsolosched(PthreadAttr* attr, int solosched);
 int APS5_VABI sched_get_priority_max_nid_postfix(int policy);
 int APS5_VABI sched_get_priority_min_nid_postfix(int policy);
@@ -92,6 +93,11 @@ int APS5_VABI pthread_attr_getstackaddr_nid_postfix(const PthreadAttr* __restric
     if (!Valid(attr) || !stack_addr) return PosixThread::GUEST_EINVAL;
     *stack_addr = (*attr)->stackAddress;
     return 0;
+}
+
+int APS5_VABI pthread_attr_setstackaddr_nid_postfix(PthreadAttr* attr, void* stack_addr) {
+    if (!Valid(attr) || !stack_addr) return PosixThread::GUEST_EINVAL;
+    return PosixThread::ToErrno(scePthreadAttrSetstackaddr(attr, stack_addr));
 }
 
 int APS5_VABI pthread_attr_getstacksize_nid_postfix(const PthreadAttr* attr, size_t* stack_size) {

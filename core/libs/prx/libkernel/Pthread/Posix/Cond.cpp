@@ -66,6 +66,13 @@ int APS5_VABI pthread_condattr_setclock_nid_postfix(PthreadCondattr* attr, Kerne
     return toPosix(scePthreadCondattrSetclock(attr, clock_id));
 }
 
+int APS5_VABI pthread_condattr_getclock_nid_postfix(const PthreadCondattr* attr, KernelClockid* clock_id) {
+    if (!attr || !*attr) return PosixThread::GUEST_EINVAL;
+    if (!clock_id) throw std::runtime_error("pthread_condattr_getclock: null clock_id");
+    *clock_id = static_cast<KernelClockid>((*attr)->_clockid);
+    return 0;
+}
+
 int APS5_VABI pthread_condattr_setpshared_nid_postfix(PthreadCondattr* attr, int pshared) {
     if (!attr || !*attr) return PosixThread::GUEST_EINVAL;
     if (pshared != POSIX_PROCESS_PRIVATE) return PosixThread::GUEST_EINVAL;
