@@ -20,6 +20,7 @@ int APS5_VABI sceKernelGetdents(int, char*, int);
 int APS5_VABI sceKernelGetdirentries(int, char*, int, std::int64_t*);
 int APS5_VABI getdents_nid_postfix(int, char*, int);
 int APS5_VABI getdirentries_nid_postfix(int, char*, int, std::int64_t*);
+int APS5_VABI _getdirentries_nid_postfix(int, char*, int, std::int64_t*);
 int* APS5_VABI __error_nid_postfix();
 std::int64_t APS5_VABI sceKernelPread(int, void*, std::size_t, std::int64_t);
 std::int64_t APS5_VABI sceKernelPwrite(int, const void*, std::size_t, std::int64_t);
@@ -120,6 +121,14 @@ int main() {
     std::map<std::string, Entry> posix;
     const int posixRead = getdirentries_nid_postfix(directory, large.data(), static_cast<int>(large.size()), &posixBase);
     Require(posixRead == readAll && posixBase == 0 && Collect(large.data(), posixRead, posix) == 6);
+    Require(sceKernelLseek(directory, 0, 0) == 0);
+    std::map<std::string, Entry> underscored;
+    posixBase = -1;
+    const int underscoredRead = _getdirentries_nid_postfix(directory, large.data(), static_cast<int>(large.size()), &posixBase);
+    Require(underscoredRead == readAll && posixBase == 0 && Collect(large.data(), underscoredRead, underscored) == 6);
+    Require(_getdirentries_nid_postfix(directory, large.data(), static_cast<int>(large.size()), &posixBase) == 0);
+    *__error_nid_postfix() = 0;
+    Require(_getdirentries_nid_postfix(directory, small.data(), 0, nullptr) == -1 && *__error_nid_postfix() == 22);
     Require(getdents_nid_postfix(directory, large.data(), static_cast<int>(large.size())) == 0);
     Require(sceKernelLseek(directory, 0, 0) == 0);
     std::map<std::string, Entry> dents;
@@ -129,6 +138,8 @@ int main() {
     Require(getdents_nid_postfix(directory, large.data(), static_cast<int>(large.size())) == -1 && *__error_nid_postfix() == 9);
     *__error_nid_postfix() = 0;
     Require(getdirentries_nid_postfix(directory, large.data(), static_cast<int>(large.size()), nullptr) == -1 && *__error_nid_postfix() == 9);
+    *__error_nid_postfix() = 0;
+    Require(_getdirentries_nid_postfix(directory, large.data(), static_cast<int>(large.size()), nullptr) == -1 && *__error_nid_postfix() == 9);
 
     const int file = sceKernelOpen((root / "data.bin").string().c_str(), SCE_KERNEL_O_RDWR, 0);
     Require(file >= 0);
