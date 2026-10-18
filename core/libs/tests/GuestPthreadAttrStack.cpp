@@ -12,10 +12,13 @@ int APS5_VABI scePthreadAttrGetguardsize(const PthreadAttr* attr, std::size_t* g
 int APS5_VABI scePthreadAttrSetguardsize(PthreadAttr* attr, std::size_t guardSize);
 int APS5_VABI scePthreadAttrSetstack(PthreadAttr* attr, void* stackAddress, std::size_t stackSize);
 int APS5_VABI scePthreadAttrSetstackaddr(PthreadAttr* attr, void* stackAddress);
+int APS5_VABI pthread_attr_setstackaddr_nid_postfix(PthreadAttr* attr, void* stackAddress);
+int APS5_VABI pthread_attr_getstackaddr_nid_postfix(const PthreadAttr* attr, void** stackAddress);
 }
 
 static constexpr int SCE_OK = 0;
 static constexpr int SceEinval = static_cast<int>(0x80020016u);
+static constexpr int GuestEinval = 22;
 static constexpr std::size_t DefaultStackSize = 1u << 20;
 static constexpr std::size_t MinimumStackSize = 16384;
 
@@ -59,6 +62,14 @@ int main() {
     Require(scePthreadAttrGetstackaddr(&attr, &address) == SCE_OK && address == stack);
     Require(scePthreadAttrSetstackaddr(&attr, &stack[16]) == SCE_OK);
     Require(scePthreadAttrGetstackaddr(&attr, &address) == SCE_OK && address == &stack[16]);
+    Require(pthread_attr_setstackaddr_nid_postfix(nullptr, &stack[32]) == GuestEinval);
+    Require(pthread_attr_setstackaddr_nid_postfix(&empty, &stack[32]) == GuestEinval);
+    Require(pthread_attr_setstackaddr_nid_postfix(&attr, nullptr) == GuestEinval);
+    Require(pthread_attr_getstackaddr_nid_postfix(&attr, &address) == 0 && address == &stack[16]);
+    Require(pthread_attr_setstackaddr_nid_postfix(&attr, &stack[32]) == 0);
+    Require(pthread_attr_getstackaddr_nid_postfix(&attr, &address) == 0 && address == &stack[32]);
+    Require(scePthreadAttrGetstackaddr(&attr, &address) == SCE_OK && address == &stack[32]);
+    Require(pthread_attr_setstackaddr_nid_postfix(&attr, &stack[16]) == 0);
 
     std::size_t guard = 0;
     Require(scePthreadAttrSetguardsize(nullptr, 8192) == SceEinval);

@@ -8,6 +8,7 @@ int APS5_VABI scePthreadCondattrInit(PthreadCondattr* attr);
 int APS5_VABI scePthreadCondattrDestroy(PthreadCondattr* attr);
 int APS5_VABI scePthreadCondattrSetclock(PthreadCondattr* attr, KernelClockid clockId);
 int APS5_VABI pthread_condattr_setclock_nid_postfix(PthreadCondattr* attr, KernelClockid clockId);
+int APS5_VABI pthread_condattr_getclock_nid_postfix(const PthreadCondattr* attr, KernelClockid* clockId);
 int APS5_VABI pthread_condattr_setpshared_nid_postfix(PthreadCondattr* attr, int pshared);
 int APS5_VABI pthread_condattr_getpshared_nid_postfix(const PthreadCondattr* attr, int* pshared);
 }
@@ -31,13 +32,28 @@ int main() {
     Require(pthread_condattr_setpshared_nid_postfix(&unset, 0) == GuestEinval);
     Require(pthread_condattr_getpshared_nid_postfix(nullptr, &sharing) == GuestEinval && sharing == -1);
     Require(pthread_condattr_getpshared_nid_postfix(&unset, &sharing) == GuestEinval && sharing == -1);
+    KernelClockid clockId = -1;
+    Require(pthread_condattr_getclock_nid_postfix(nullptr, &clockId) == GuestEinval && clockId == -1);
+    Require(pthread_condattr_getclock_nid_postfix(&unset, &clockId) == GuestEinval && clockId == -1);
 
     PthreadCondattr attr = nullptr;
     Require(scePthreadCondattrInit(&attr) == SCE_OK);
+    Require(pthread_condattr_getclock_nid_postfix(&attr, &clockId) == 0 && clockId == 0);
     for (const KernelClockid clock : {0, 1, 2, Monotonic, 5, 12}) {
         Require(scePthreadCondattrSetclock(&attr, clock) == SCE_OK);
+        clockId = -1;
+        Require(pthread_condattr_getclock_nid_postfix(&attr, &clockId) == 0 && clockId == clock);
         Require(pthread_condattr_setclock_nid_postfix(&attr, clock) == 0);
+        clockId = -1;
+        Require(pthread_condattr_getclock_nid_postfix(&attr, &clockId) == 0 && clockId == clock);
     }
+    bool clockThrew = false;
+    try {
+        pthread_condattr_getclock_nid_postfix(&attr, nullptr);
+    } catch (const std::runtime_error&) {
+        clockThrew = true;
+    }
+    Require(clockThrew);
     Require(pthread_condattr_getpshared_nid_postfix(&attr, &sharing) == 0 && sharing == 0);
     for (const int invalid : {1, 2, -1}) {
         Require(pthread_condattr_setpshared_nid_postfix(&attr, invalid) == GuestEinval);
@@ -59,4 +75,6 @@ int main() {
     sharing = -1;
     Require(pthread_condattr_getpshared_nid_postfix(&attr, &sharing) == GuestEinval && sharing == -1);
     Require(pthread_condattr_setpshared_nid_postfix(&attr, 0) == GuestEinval);
+    clockId = -1;
+    Require(pthread_condattr_getclock_nid_postfix(&attr, &clockId) == GuestEinval && clockId == -1);
 }

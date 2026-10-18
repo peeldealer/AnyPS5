@@ -14,6 +14,10 @@ int APS5_VABI pthread_mutexattr_setprioceiling_nid_postfix(PthreadMutexattr* att
 int APS5_VABI pthread_mutexattr_getprioceiling_nid_postfix(const PthreadMutexattr* attr, int* prioceiling);
 int APS5_VABI pthread_mutexattr_settype_nid_postfix(PthreadMutexattr* attr, int type);
 int APS5_VABI pthread_mutexattr_gettype_nid_postfix(const PthreadMutexattr* attr, int* type);
+int APS5_VABI pthread_mutexattr_getprotocol_nid_postfix(const PthreadMutexattr* attr, int* protocol);
+int APS5_VABI pthread_mutexattr_setkind_np_nid_postfix(PthreadMutexattr* attr, int kind);
+int APS5_VABI pthread_mutexattr_getkind_np_nid_postfix(PthreadMutexattr attr);
+int* APS5_VABI __error_nid_postfix();
 int APS5_VABI pthread_mutex_init_nid_postfix(PthreadMutex* mutex, const PthreadMutexattr* attr);
 int APS5_VABI pthread_mutex_lock_nid_postfix(PthreadMutex* mutex);
 int APS5_VABI pthread_mutex_unlock_nid_postfix(PthreadMutex* mutex);
@@ -79,6 +83,48 @@ static void CheckType() {
     Require(pthread_mutexattr_gettype_nid_postfix(nullptr, &type) == GUEST_EINVAL && type == -1);
 }
 
+static void CheckKindAndProtocol() {
+    PthreadMutexattr attr = nullptr;
+    int* error = __error_nid_postfix();
+    *error = 0;
+    Require(pthread_mutexattr_getkind_np_nid_postfix(nullptr) == -1 && *error == GUEST_EINVAL);
+    *error = 0;
+    Require(pthread_mutexattr_setkind_np_nid_postfix(nullptr, 2) == -1 && *error == GUEST_EINVAL);
+    *error = 0;
+    Require(pthread_mutexattr_setkind_np_nid_postfix(&attr, 2) == -1 && *error == GUEST_EINVAL);
+    int protocol = -1;
+    Require(pthread_mutexattr_getprotocol_nid_postfix(nullptr, &protocol) == GUEST_EINVAL && protocol == -1);
+    Require(pthread_mutexattr_getprotocol_nid_postfix(&attr, &protocol) == GUEST_EINVAL && protocol == -1);
+    Require(pthread_mutexattr_init_nid_postfix(&attr) == 0);
+    Require(pthread_mutexattr_getkind_np_nid_postfix(attr) == 1);
+    for (const int kind : {2, 3, 4, 1}) {
+        Require(pthread_mutexattr_setkind_np_nid_postfix(&attr, kind) == 0);
+        Require(pthread_mutexattr_getkind_np_nid_postfix(attr) == kind);
+        int type = -1;
+        Require(pthread_mutexattr_gettype_nid_postfix(&attr, &type) == 0 && type == kind);
+    }
+    Require(pthread_mutexattr_settype_nid_postfix(&attr, 3) == 0 && pthread_mutexattr_getkind_np_nid_postfix(attr) == 3);
+    for (const int invalid : {0, 5, -1}) Require(Throws([&] { pthread_mutexattr_setkind_np_nid_postfix(&attr, invalid); }));
+    Require(pthread_mutexattr_getkind_np_nid_postfix(attr) == 3);
+    Require(pthread_mutexattr_setkind_np_nid_postfix(&attr, 2) == 0);
+    PthreadMutex mutex = nullptr;
+    Require(pthread_mutex_init_nid_postfix(&mutex, &attr) == 0);
+    Require(pthread_mutex_lock_nid_postfix(&mutex) == 0);
+    Require(pthread_mutex_lock_nid_postfix(&mutex) == 0);
+    Require(pthread_mutex_unlock_nid_postfix(&mutex) == 0);
+    Require(pthread_mutex_unlock_nid_postfix(&mutex) == 0);
+    Require(pthread_mutex_destroy_nid_postfix(&mutex) == 0);
+    Require(pthread_mutexattr_getprotocol_nid_postfix(&attr, &protocol) == 0 && protocol == PRIO_NONE);
+    for (const int set : {PRIO_INHERIT, PRIO_PROTECT, PRIO_NONE}) {
+        Require(pthread_mutexattr_setprotocol_nid_postfix(&attr, set) == 0);
+        Require(pthread_mutexattr_getprotocol_nid_postfix(&attr, &protocol) == 0 && protocol == set);
+    }
+    Require(Throws([&] { pthread_mutexattr_getprotocol_nid_postfix(&attr, nullptr); }));
+    Require(pthread_mutexattr_destroy_nid_postfix(&attr) == 0);
+    protocol = -1;
+    Require(pthread_mutexattr_getprotocol_nid_postfix(&attr, &protocol) == GUEST_EINVAL && protocol == -1);
+}
+
 static void CheckProcessSharing() {
     PthreadMutexattr attr = nullptr;
     int sharing = -1;
@@ -123,6 +169,7 @@ static void CheckInvalidPriorityAttribute(PthreadMutexattr* attr) {
 
 int main() {
     CheckType();
+    CheckKindAndProtocol();
     CheckProcessSharing();
     CheckTimedlockInvalidDeadline();
     PthreadMutexattr attr = nullptr;
