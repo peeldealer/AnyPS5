@@ -64,10 +64,18 @@ int APS5_VABI pthread_rwlockattr_getpshared_nid_postfix(const PthreadRwlockattr*
     return 0;
 }
 
+int APS5_VABI scePthreadRwlockattrGetpshared(const PthreadRwlockattr* attr, int* pshared) {
+    return PosixThread::ToSce(pthread_rwlockattr_getpshared_nid_postfix(attr, pshared));
+}
+
 int APS5_VABI pthread_rwlockattr_setpshared_nid_postfix(PthreadRwlockattr* attr, int pshared) {
     if (pshared != PROCESS_PRIVATE) return PosixThread::GUEST_EINVAL;
     if (!attr || !*attr) throw std::runtime_error("pthread_rwlockattr_setpshared: null attr");
     return 0;
+}
+
+int APS5_VABI scePthreadRwlockattrSetpshared(PthreadRwlockattr* attr, int pshared) {
+    return PosixThread::ToSce(pthread_rwlockattr_setpshared_nid_postfix(attr, pshared));
 }
 
 int APS5_VABI pthread_rwlock_rdlock_nid_postfix(PthreadRwlock* rwlock) {

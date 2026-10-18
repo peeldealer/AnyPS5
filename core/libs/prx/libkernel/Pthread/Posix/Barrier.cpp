@@ -1,4 +1,5 @@
 #include "prx/libc/include/General.hpp"
+#include "Common.hpp"
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
@@ -37,11 +38,19 @@ int APS5_VABI pthread_barrierattr_init_nid_postfix(PthreadBarrierattrPrivate** a
     }
 }
 
+int APS5_VABI scePthreadBarrierattrInit(PthreadBarrierattrPrivate** attr) {
+    return PosixThread::ToSce(pthread_barrierattr_init_nid_postfix(attr));
+}
+
 int APS5_VABI pthread_barrierattr_destroy_nid_postfix(PthreadBarrierattrPrivate** attr) {
     if (!attr || !*attr) return 22;
     delete *attr;
     *attr = nullptr;
     return 0;
+}
+
+int APS5_VABI scePthreadBarrierattrDestroy(PthreadBarrierattrPrivate** attr) {
+    return PosixThread::ToSce(pthread_barrierattr_destroy_nid_postfix(attr));
 }
 
 int APS5_VABI pthread_barrierattr_getpshared_nid_postfix(PthreadBarrierattrPrivate* const* attr, int* pshared) {
@@ -51,11 +60,19 @@ int APS5_VABI pthread_barrierattr_getpshared_nid_postfix(PthreadBarrierattrPriva
     return 0;
 }
 
+int APS5_VABI scePthreadBarrierattrGetpshared(PthreadBarrierattrPrivate* const* attr, int* pshared) {
+    return PosixThread::ToSce(pthread_barrierattr_getpshared_nid_postfix(attr, pshared));
+}
+
 int APS5_VABI pthread_barrierattr_setpshared_nid_postfix(PthreadBarrierattrPrivate** attr, int pshared) {
     if (!attr || !*attr) return 22;
     if (pshared != PROCESS_PRIVATE) return 22;
     (*attr)->pshared = pshared;
     return 0;
+}
+
+int APS5_VABI scePthreadBarrierattrSetpshared(PthreadBarrierattrPrivate** attr, int pshared) {
+    return PosixThread::ToSce(pthread_barrierattr_setpshared_nid_postfix(attr, pshared));
 }
 
 int APS5_VABI pthread_barrier_init_nid_postfix(PthreadBarrierPrivate** barrier, PthreadBarrierattrPrivate* const* attr, unsigned count) {
@@ -100,6 +117,10 @@ int APS5_VABI pthread_barrier_destroy_nid_postfix(PthreadBarrierPrivate** barrie
     delete value;
     *barrier = nullptr;
     return 0;
+}
+
+int APS5_VABI scePthreadBarrierDestroy(PthreadBarrierPrivate** barrier) {
+    return PosixThread::ToSce(pthread_barrier_destroy_nid_postfix(barrier));
 }
 
 }

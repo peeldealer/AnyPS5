@@ -4,6 +4,9 @@
 #include <stdexcept>
 
 extern "C" {
+int APS5_VABI scePthreadCondattrGetclock(const PthreadCondattr* attr, KernelClockid* clockId);
+int APS5_VABI scePthreadCondattrGetpshared(const PthreadCondattr* attr, int* pshared);
+int APS5_VABI scePthreadCondattrSetpshared(PthreadCondattr* attr, int pshared);
 int APS5_VABI scePthreadCondattrInit(PthreadCondattr* attr);
 int APS5_VABI scePthreadCondattrDestroy(PthreadCondattr* attr);
 int APS5_VABI scePthreadCondattrSetclock(PthreadCondattr* attr, KernelClockid clockId);
@@ -19,7 +22,34 @@ static constexpr KernelClockid Monotonic = 4;
 
 static void Require(bool value) { if (!value) std::abort(); }
 
+static void CheckSceAccessors() {
+    PthreadCondattr attr = nullptr;
+    KernelClockid clock = -1;
+    int shared = -1;
+    Require(scePthreadCondattrGetclock(nullptr, &clock) == SceEinval && clock == -1);
+    Require(scePthreadCondattrGetclock(&attr, &clock) == SceEinval && clock == -1);
+    Require(scePthreadCondattrGetpshared(&attr, &shared) == SceEinval && shared == -1);
+    Require(scePthreadCondattrSetpshared(nullptr, 0) == SceEinval);
+    Require(scePthreadCondattrInit(&attr) == SCE_OK);
+    Require(scePthreadCondattrGetclock(&attr, &clock) == SCE_OK && clock == 0);
+    Require(scePthreadCondattrSetclock(&attr, Monotonic) == SCE_OK);
+    Require(scePthreadCondattrGetclock(&attr, &clock) == SCE_OK && clock == Monotonic);
+    bool threw = false;
+    try {
+        scePthreadCondattrGetclock(&attr, nullptr);
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    Require(threw);
+    Require(scePthreadCondattrGetpshared(&attr, &shared) == SCE_OK && shared == 0);
+    Require(scePthreadCondattrSetpshared(&attr, 1) == SceEinval);
+    Require(scePthreadCondattrSetpshared(&attr, 0) == SCE_OK);
+    Require(scePthreadCondattrDestroy(&attr) == SCE_OK);
+    Require(scePthreadCondattrGetclock(&attr, &clock) == SceEinval);
+}
+
 int main() {
+    CheckSceAccessors();
     PthreadCondattr unset = nullptr;
     int sharing = -1;
     Require(scePthreadCondattrSetclock(nullptr, Monotonic) == SceEinval);

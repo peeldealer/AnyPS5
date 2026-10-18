@@ -8,6 +8,11 @@ struct GuestBarrier;
 struct GuestBarrierattr;
 
 extern "C" {
+int APS5_VABI scePthreadBarrierattrInit(GuestBarrierattr** attr);
+int APS5_VABI scePthreadBarrierattrDestroy(GuestBarrierattr** attr);
+int APS5_VABI scePthreadBarrierattrGetpshared(GuestBarrierattr* const* attr, int* pshared);
+int APS5_VABI scePthreadBarrierattrSetpshared(GuestBarrierattr** attr, int pshared);
+int APS5_VABI scePthreadBarrierDestroy(GuestBarrier** barrier);
 int APS5_VABI scePthreadCreate(Pthread* thread, const PthreadAttr* attr, PthreadEntry entry, void* arg, const char* name);
 int APS5_VABI scePthreadJoin(Pthread thread, void** retval);
 int APS5_VABI pthread_barrierattr_init_nid_postfix(GuestBarrierattr** attr);
@@ -56,7 +61,25 @@ static void RunWaiters(Context& context) {
     Require(context.serial == 1 && context.released == static_cast<int>(WAITERS) - 1);
 }
 
+static void CheckSceBarrierWrappers() {
+    GuestBarrierattr* attr = nullptr;
+    int shared = -1;
+    if (scePthreadBarrierattrInit(&attr) != 0 || attr == nullptr) std::abort();
+    if (scePthreadBarrierattrGetpshared(&attr, &shared) != 0 || shared != 0) std::abort();
+    if (scePthreadBarrierattrSetpshared(&attr, 0) != 0) std::abort();
+    int posix = pthread_barrierattr_setpshared_nid_postfix(&attr, 1);
+    if (scePthreadBarrierattrSetpshared(&attr, 1) != (posix ? static_cast<int>(0x80020000u | static_cast<unsigned>(posix)) : 0)) std::abort();
+    GuestBarrier* barrier = nullptr;
+    if (pthread_barrier_init_nid_postfix(&barrier, &attr, 1) != 0) std::abort();
+    if (scePthreadBarrierDestroy(&barrier) != 0) std::abort();
+    if (scePthreadBarrierattrDestroy(&attr) != 0) std::abort();
+    GuestBarrierattr* empty = nullptr;
+    posix = pthread_barrierattr_destroy_nid_postfix(&empty);
+    if (posix == 0 || scePthreadBarrierattrDestroy(&empty) != static_cast<int>(0x80020000u | static_cast<unsigned>(posix))) std::abort();
+}
+
 int main() {
+    CheckSceBarrierWrappers();
     GuestBarrierattr* missing = nullptr;
     int pshared = -1;
     Require(pthread_barrierattr_init_nid_postfix(nullptr) == GUEST_EINVAL);

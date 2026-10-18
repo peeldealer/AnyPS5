@@ -96,11 +96,19 @@ int APS5_VABI pthread_mutexattr_getpshared_nid_postfix(const PthreadMutexattr* a
     return 0;
 }
 
+int APS5_VABI scePthreadMutexattrGetpshared(const PthreadMutexattr* attr, int* pshared) {
+    return PosixThread::ToSce(pthread_mutexattr_getpshared_nid_postfix(attr, pshared));
+}
+
 int APS5_VABI pthread_mutexattr_setpshared_nid_postfix(PthreadMutexattr* attr, int pshared) {
     if (!attr || !*attr) return POSIX_EINVAL;
     if (pshared != POSIX_PROCESS_PRIVATE) return POSIX_EINVAL;
     (*attr)->pshared = pshared;
     return 0;
+}
+
+int APS5_VABI scePthreadMutexattrSetpshared(PthreadMutexattr* attr, int pshared) {
+    return PosixThread::ToSce(pthread_mutexattr_setpshared_nid_postfix(attr, pshared));
 }
 
 int APS5_VABI pthread_mutexattr_setprotocol_nid_postfix(PthreadMutexattr* attr, int protocol) {
@@ -135,6 +143,10 @@ int APS5_VABI pthread_mutexattr_gettype_nid_postfix(const PthreadMutexattr* attr
     if (!type) throw std::runtime_error("pthread_mutexattr_gettype: null type");
     *type = static_cast<int>((*attr)->type);
     return 0;
+}
+
+int APS5_VABI scePthreadMutexattrGettype(const PthreadMutexattr* attr, int* type) {
+    return PosixThread::ToSce(pthread_mutexattr_gettype_nid_postfix(attr, type));
 }
 
 }

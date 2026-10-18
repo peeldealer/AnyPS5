@@ -7,6 +7,10 @@
 #include <thread>
 
 extern "C" {
+int APS5_VABI scePthreadRwlockattrGetpshared(const PthreadRwlockattr* attr, int* pshared);
+int APS5_VABI scePthreadRwlockattrSetpshared(PthreadRwlockattr* attr, int pshared);
+int APS5_VABI scePthreadRwlockattrInit(PthreadRwlockattr* attr);
+int APS5_VABI scePthreadRwlockattrDestroy(PthreadRwlockattr* attr);
 int APS5_VABI scePthreadCreate(Pthread* thread, const PthreadAttr* attr, PthreadEntry entry, void* arg, const char* name);
 int APS5_VABI scePthreadJoin(Pthread thread, void** retval);
 int APS5_VABI clock_gettime_nid_postfix(int clockId, KernelTimespec* tp);
@@ -349,7 +353,19 @@ static void CheckAttrProcessSharing() {
     Require(pthread_rwlockattr_destroy_nid_postfix(&attr) == 0);
 }
 
+static void CheckSceRwlockattrPshared() {
+    PthreadRwlockattr attr = nullptr;
+    int shared = -1;
+    if (scePthreadRwlockattrInit(&attr) != 0) std::abort();
+    if (scePthreadRwlockattrGetpshared(&attr, &shared) != 0 || shared != 0) std::abort();
+    const int posix = pthread_rwlockattr_setpshared_nid_postfix(&attr, 1);
+    if (posix == 0 || scePthreadRwlockattrSetpshared(&attr, 1) != static_cast<int>(0x80020000u | static_cast<unsigned>(posix))) std::abort();
+    if (scePthreadRwlockattrSetpshared(&attr, 0) != 0) std::abort();
+    if (scePthreadRwlockattrDestroy(&attr) != 0) std::abort();
+}
+
 int main() {
+    CheckSceRwlockattrPshared();
     CheckAttrProcessSharing();
     CheckWaitingWriterHoldsBackNewReaders();
     CheckConcurrentFirstWrlockExcludes();

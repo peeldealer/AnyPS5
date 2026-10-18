@@ -63,6 +63,10 @@ int APS5_VABI pthread_attr_getinheritsched_nid_postfix(const PthreadAttr* attr, 
     return 0;
 }
 
+int APS5_VABI scePthreadAttrGetinheritsched(const PthreadAttr* attr, int* inherit_sched) {
+    return PosixThread::ToSce(pthread_attr_getinheritsched_nid_postfix(attr, inherit_sched));
+}
+
 int APS5_VABI pthread_attr_getschedparam_nid_postfix(const PthreadAttr* attr, KernelSchedParam* param) {
     if (!Valid(attr) || !param) return PosixThread::GUEST_EINVAL;
     param->sched_priority = (*attr)->_schedpriority;
@@ -75,10 +79,18 @@ int APS5_VABI pthread_attr_getschedpolicy_nid_postfix(const PthreadAttr* attr, i
     return 0;
 }
 
+int APS5_VABI scePthreadAttrGetschedpolicy(const PthreadAttr* attr, int* policy) {
+    return PosixThread::ToSce(pthread_attr_getschedpolicy_nid_postfix(attr, policy));
+}
+
 int APS5_VABI pthread_attr_getscope_nid_postfix(const PthreadAttr* attr, int* scope) {
     if (!Valid(attr) || !scope) return PosixThread::GUEST_EINVAL;
     *scope = (*attr)->_scope;
     return 0;
+}
+
+int APS5_VABI scePthreadAttrGetscope(const PthreadAttr* attr, int* scope) {
+    return PosixThread::ToSce(pthread_attr_getscope_nid_postfix(attr, scope));
 }
 
 int APS5_VABI pthread_attr_getstack_nid_postfix(const PthreadAttr* __restrict attr, void** __restrict stack_addr, size_t* __restrict stack_size) {
@@ -146,6 +158,10 @@ int APS5_VABI pthread_attr_setscope_nid_postfix(PthreadAttr* attr, int scope) {
     if (!Valid(attr) || (scope != GUEST_SCOPE_PROCESS && scope != GUEST_SCOPE_SYSTEM)) return PosixThread::GUEST_EINVAL;
     (*attr)->_scope = scope;
     return 0;
+}
+
+int APS5_VABI scePthreadAttrSetscope(PthreadAttr* attr, int scope) {
+    return PosixThread::ToSce(pthread_attr_setscope_nid_postfix(attr, scope));
 }
 
 int APS5_VABI pthread_attr_setstacksize_nid_postfix(PthreadAttr* attr, size_t stack_size) {

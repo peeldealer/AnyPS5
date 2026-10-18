@@ -5,6 +5,7 @@
 #include <chrono>
 #include <limits>
 #include "SceTypes.hpp"
+#include "prx/libkernel/KernelErrors.hpp"
 
 extern "C" int APS5_VABI clock_gettime_nid_postfix(int clockId, KernelTimespec* tp);
 
@@ -18,6 +19,10 @@ constexpr int GUEST_ETIMEDOUT = 60;
 
 inline int ToErrno(int sceResult) {
     return sceResult == 0 ? 0 : static_cast<int>(static_cast<std::uint32_t>(sceResult) & 0xFFFFu);
+}
+
+inline int ToSce(int posixResult) {
+    return posixResult == 0 ? 0 : SceKernelError(posixResult);
 }
 
 // Converts an absolute deadline on the guest clock into a relative wait, clamped to what the sce layer accepts.

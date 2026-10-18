@@ -5,6 +5,10 @@
 #include <stdexcept>
 
 extern "C" {
+int APS5_VABI scePthreadMutexattrGettype(const PthreadMutexattr* attr, int* type);
+int APS5_VABI scePthreadMutexattrGetpshared(const PthreadMutexattr* attr, int* pshared);
+int APS5_VABI scePthreadMutexattrSetpshared(PthreadMutexattr* attr, int pshared);
+int APS5_VABI scePthreadMutexattrSettype(PthreadMutexattr* attr, int type);
 int APS5_VABI pthread_mutexattr_init_nid_postfix(PthreadMutexattr* attr);
 int APS5_VABI pthread_mutexattr_destroy_nid_postfix(PthreadMutexattr* attr);
 int APS5_VABI pthread_mutexattr_getpshared_nid_postfix(const PthreadMutexattr* attr, int* pshared);
@@ -121,7 +125,26 @@ static void CheckInvalidPriorityAttribute(PthreadMutexattr* attr) {
     Require(pthread_mutexattr_getprioceiling_nid_postfix(attr, nullptr) == GUEST_EINVAL);
 }
 
+static void CheckSceAccessors() {
+    constexpr int SceEinvalValue = static_cast<int>(0x80020016u);
+    PthreadMutexattr attr = nullptr;
+    int value = -1;
+    Require(scePthreadMutexattrGettype(&attr, &value) == SceEinvalValue && value == -1);
+    Require(scePthreadMutexattrGetpshared(nullptr, &value) == SceEinvalValue && value == -1);
+    Require(scePthreadMutexattrSetpshared(&attr, 0) == SceEinvalValue);
+    Require(pthread_mutexattr_init_nid_postfix(&attr) == 0);
+    Require(scePthreadMutexattrGettype(&attr, &value) == 0 && value == 1);
+    Require(scePthreadMutexattrSettype(&attr, 2) == 0);
+    Require(scePthreadMutexattrGettype(&attr, &value) == 0 && value == 2);
+    Require(Throws([&] { scePthreadMutexattrGettype(&attr, nullptr); }));
+    Require(scePthreadMutexattrGetpshared(&attr, &value) == 0 && value == 0);
+    Require(scePthreadMutexattrSetpshared(&attr, 1) == SceEinvalValue);
+    Require(scePthreadMutexattrSetpshared(&attr, 0) == 0);
+    Require(pthread_mutexattr_destroy_nid_postfix(&attr) == 0);
+}
+
 int main() {
+    CheckSceAccessors();
     CheckType();
     CheckProcessSharing();
     CheckTimedlockInvalidDeadline();

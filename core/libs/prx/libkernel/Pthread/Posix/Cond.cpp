@@ -73,10 +73,25 @@ int APS5_VABI pthread_condattr_setpshared_nid_postfix(PthreadCondattr* attr, int
     return 0;
 }
 
+int APS5_VABI scePthreadCondattrSetpshared(PthreadCondattr* attr, int pshared) {
+    return PosixThread::ToSce(pthread_condattr_setpshared_nid_postfix(attr, pshared));
+}
+
 int APS5_VABI pthread_condattr_getpshared_nid_postfix(const PthreadCondattr* attr, int* pshared) {
     if (!attr || !*attr) return PosixThread::GUEST_EINVAL;
     if (!pshared) throw std::runtime_error("pthread_condattr_getpshared: null pshared");
     *pshared = (*attr)->_pshared;
+    return 0;
+}
+
+int APS5_VABI scePthreadCondattrGetpshared(const PthreadCondattr* attr, int* pshared) {
+    return PosixThread::ToSce(pthread_condattr_getpshared_nid_postfix(attr, pshared));
+}
+
+int APS5_VABI scePthreadCondattrGetclock(const PthreadCondattr* attr, KernelClockid* clock_id) {
+    if (!attr || !*attr) return PosixThread::ToSce(PosixThread::GUEST_EINVAL);
+    if (!clock_id) throw std::runtime_error("scePthreadCondattrGetclock: null clock_id");
+    *clock_id = static_cast<KernelClockid>((*attr)->_clockid);
     return 0;
 }
 

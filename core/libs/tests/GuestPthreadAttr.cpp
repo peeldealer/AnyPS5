@@ -4,6 +4,10 @@
 #include <future>
 
 extern "C" {
+int APS5_VABI scePthreadAttrGetinheritsched(const PthreadAttr* attr, int* inheritSched);
+int APS5_VABI scePthreadAttrGetschedpolicy(const PthreadAttr* attr, int* policy);
+int APS5_VABI scePthreadAttrGetscope(const PthreadAttr* attr, int* scope);
+int APS5_VABI scePthreadAttrSetscope(PthreadAttr* attr, int scope);
 int APS5_VABI scePthreadCreate(Pthread* thread, const PthreadAttr* attr, PthreadEntry entry, void* arg, const char* name);
 int APS5_VABI scePthreadJoin(Pthread thread, void** retval);
 int APS5_VABI scePthreadSetprio(Pthread thread, int prio);
@@ -256,7 +260,31 @@ static void CheckThreadScope() {
     Require(scePthreadJoin(inheritedThread, nullptr) == SCE_OK);
 }
 
+static void CheckSceSchedulingAccessors() {
+    constexpr int SceEinvalValue = static_cast<int>(0x80020016u);
+    PthreadAttr empty = nullptr;
+    int value = -1;
+    if (scePthreadAttrGetinheritsched(&empty, &value) != SceEinvalValue) std::abort();
+    if (scePthreadAttrGetschedpolicy(&empty, &value) != SceEinvalValue) std::abort();
+    if (scePthreadAttrGetscope(&empty, &value) != SceEinvalValue) std::abort();
+    if (scePthreadAttrSetscope(&empty, 0) != SceEinvalValue) std::abort();
+    PthreadAttr attr = nullptr;
+    if (scePthreadAttrInit(&attr) != 0) std::abort();
+    int expected = -2;
+    if (pthread_attr_getinheritsched_nid_postfix(&attr, &expected) != 0 || scePthreadAttrGetinheritsched(&attr, &value) != 0 || value != expected) std::abort();
+    if (pthread_attr_getschedpolicy_nid_postfix(&attr, &expected) != 0 || scePthreadAttrGetschedpolicy(&attr, &value) != 0 || value != expected) std::abort();
+    if (pthread_attr_getscope_nid_postfix(&attr, &expected) != 0 || scePthreadAttrGetscope(&attr, &value) != 0 || value != expected) std::abort();
+    for (const int scope : {0, 2}) {
+        if (scePthreadAttrSetscope(&attr, scope) != 0) std::abort();
+        if (scePthreadAttrGetscope(&attr, &value) != 0 || value != scope) std::abort();
+    }
+    int posix = pthread_attr_setscope_nid_postfix(&attr, 99);
+    if (posix == 0 || scePthreadAttrSetscope(&attr, 99) != static_cast<int>(0x80020000u | static_cast<unsigned>(posix))) std::abort();
+    if (scePthreadAttrDestroy(&attr) != 0) std::abort();
+}
+
 int main() {
+    CheckSceSchedulingAccessors();
     CheckStackSizeLimit();
     CheckSoloSched();
     CheckSchedArguments();
