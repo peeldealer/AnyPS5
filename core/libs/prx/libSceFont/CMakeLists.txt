@@ -38,4 +38,28 @@ if(BUILD_TESTING)
         set_tests_properties(font_face_lifetime font_face_lifetime_replace font_face_lifetime_churn PROPERTIES ENVIRONMENT_MODIFICATION
                 "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
     endif()
+    get_target_property(fontOutlineSources libSceFont SOURCES)
+    add_test_executable(font_outline_serialization_tests ${LIBS_INCLUDE_DIR}/tests/FontOutlineSerialization.cpp ${fontOutlineSources})
+    target_include_directories(font_outline_serialization_tests PRIVATE ${LIBS_INCLUDE_DIR})
+    target_link_libraries(font_outline_serialization_tests PRIVATE libSceFontFt freetype libc)
+    configure_windows_unwind(font_outline_serialization_tests)
+    add_test(NAME font_outline_serialization COMMAND font_outline_serialization_tests)
+    set_tests_properties(font_outline_serialization PROPERTIES TIMEOUT 30)
+    if(WIN32)
+        set_tests_properties(font_outline_serialization PROPERTIES ENVIRONMENT_MODIFICATION
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceFontFt>"
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
+    endif()
+    add_test_executable(font_outline_shared_tests ${LIBS_INCLUDE_DIR}/tests/FontOutlineShared.cpp)
+    target_include_directories(font_outline_shared_tests PRIVATE ${LIBS_INCLUDE_DIR})
+    target_link_libraries(font_outline_shared_tests PRIVATE libSceFont libSceFontFt libc)
+    configure_windows_unwind(font_outline_shared_tests)
+    add_test(NAME font_outline_shared COMMAND font_outline_shared_tests)
+    set_tests_properties(font_outline_shared PROPERTIES TIMEOUT 30)
+    if(WIN32)
+        set_tests_properties(font_outline_shared PROPERTIES ENVIRONMENT_MODIFICATION
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceFont>"
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceFontFt>"
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
+    endif()
 endif()
