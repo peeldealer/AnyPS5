@@ -361,9 +361,53 @@ __attribute__((noinline)) static void APS5_VABI RunChecks() {
         };
         Require(rejects("\xff", "%ls") && rejects("a b", "%2$ls") && rejects("\xc5\xbe", "%l[\xc5\xbe]"));
         Require(rejects("\xf0\x9f\x98\x80", "%ls"));
+        Require(rejects("ab cd", "%2$C") && rejects("ab cd", "%'ls"));
     }
     char narrow[8] = {};
     Require(sscanf_nid_postfix("ab%", "%7[^%ls]", narrow) == 1 && std::strcmp(narrow, "ab") == 0);
+#endif
+    {
+        char16_t text[8] = {u'!', u'!', u'!', u'!', u'!', u'!', u'!', u'!'};
+        char16_t pair[3] = {u'!', u'!', u'!'};
+        int number = -1, end = -1;
+        const auto wideIs = [](const char16_t* value, const char16_t* expected) { return std::u16string(value) == expected; };
+        Require(sscanf_nid_postfix("ab cd", "%ls", text) == 1 && wideIs(text, u"ab"));
+        Require(sscanf_nid_postfix(" xyz", "%2lc", pair) == 1 && pair[0] == u' ' && pair[1] == u'x' && pair[2] == u'!');
+        Require(sscanf_nid_postfix("abcd1", "%l[a-c]", text) == 1 && wideIs(text, u"abc"));
+        Require(sscanf_nid_postfix("ef gh", "%S %C", text, pair) == 2 && wideIs(text, u"ef") && pair[0] == u'g');
+        Require(sscanf_nid_postfix("7 word 9", "%d %ls %d%n", &number, text, &first, &end) == 3);
+        Require(number == 7 && wideIs(text, u"word") && first == 9 && end == 8);
+        Require(sscanf_nid_postfix("abcdef", "%3ls", text) == 1 && wideIs(text, u"abc"));
+        Require(sscanf_nid_postfix("ab cd", "%*ls %ls", text) == 1 && wideIs(text, u"cd"));
+#ifndef _WIN32
+        Require(sscanf_nid_postfix("\xc3\xa9t\xc3\xa9", "%ls", text) == 1 && text[0] == 0x00E9 && text[1] == u't' && text[2] == 0x00E9 && text[3] == 0);
+#endif
+        Require(sscanf_nid_postfix("1", "%l[a-z]", text) == 0);
+        Require(sscanf_nid_postfix("", "%ls", text) == EOF && sscanf_nid_postfix("   ", "%ls", text) == EOF);
+        Require(sscanf_nid_postfix("", "%lc", pair) == EOF);
+        Require(ScanList("vw xy", "%ls %lc", text, pair) == 2 && wideIs(text, u"vw") && pair[0] == u'x');
+        Require(ScanListS("abc", "%ls", text, 4u) == 1 && wideIs(text, u"abc"));
+        Require(ScanListS("abcdef", "%ls", text, 4u) == 0 && text[0] == 0);
+        Require(ScanListS("abcd", "%3lc", pair, 2u) == 0 && pair[0] == 0);
+        Require(ScanListS("abcd", "%2lc", pair, 2u) == 1 && pair[0] == u'a' && pair[1] == u'b');
+    }
+#ifdef _WIN32
+    char freebsd[64];
+    Require(snprintf_nid_postfix(freebsd, sizeof(freebsd), "%qd|%qu|%qx|%qo") == 15 &&
+        std::strcmp(freebsd, "%qd|%qu|%qx|%qo") == 0);
+    Require(snprintf_nid_postfix(freebsd, sizeof(freebsd), "%qd|%d", 7) == 5 && std::strcmp(freebsd, "%qd|7") == 0);
+    Require(snprintf_nid_postfix(freebsd, sizeof(freebsd), "%D|%hD|%O|%U|%jD") == 14 &&
+        std::strcmp(freebsd, "%D|%D|%O|%U|%D") == 0);
+    Require(snprintf_nid_postfix(freebsd, sizeof(freebsd), "[%5%][%-5%][%y][%5y][%-3y][%hhz]") == 34 &&
+        std::strcmp(freebsd, "[    %][%    ][%y][   %y][%y ][%z]") == 0);
+    for (const char* unsupported : {"%+y", "%#y", "%05y", "%.2y"}) {
+        bool threw = false;
+        try { snprintf_nid_postfix(freebsd, sizeof(freebsd), unsupported, 1); } catch (const std::invalid_argument&) { threw = true; }
+        Require(threw);
+    }
+    bool incomplete = false;
+    try { snprintf_nid_postfix(freebsd, sizeof(freebsd), "100%"); } catch (const std::invalid_argument&) { incomplete = true; }
+    Require(incomplete);
 #endif
     long long count = -1;
     int smallCount = -1;
