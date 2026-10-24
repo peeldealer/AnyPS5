@@ -5,6 +5,7 @@
 #include <bit>
 #include <cmath>
 #include <cstring>
+#include <memory>
 #include <vector>
 
 #include <ft2build.h>
@@ -498,10 +499,14 @@ int Font::RenderCharGlyphImageCore(FontHandle handle, std::uint32_t code, FontRe
 }
 
 bool Font::BuildTrueOutline(GeneratedGlyph& glyph) {
+    if (!TryGetState(glyph.owner)) return false;
+    auto* font = GetNativeFont(glyph.owner);
+    std::uint32_t previous = 0;
+    if (!AcquireFontLock(font, previous)) return false;
+    const auto release = [previous](FontHandleNative* locked) { ReleaseFontLock(locked, previous); };
+    const std::unique_ptr<FontHandleNative, decltype(release)> lock(font, release);
     FontState* state = TryGetState(glyph.owner);
     if (!state || !state->face) return false;
-    const auto* font = GetNativeFont(glyph.owner);
-    if (font->magic != HANDLE_MAGIC) return false;
     FT_UInt glyphIndex = 0;
     const FT_Face face = FaceForCode(*state, glyph.codepoint, &glyphIndex);
     if (!face) return false;

@@ -38,4 +38,48 @@ if(BUILD_TESTING)
         set_tests_properties(font_face_lifetime font_face_lifetime_replace font_face_lifetime_churn PROPERTIES ENVIRONMENT_MODIFICATION
                 "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
     endif()
+    add_library(font_lock_observer OBJECT ${LIBS_INCLUDE_DIR}/tests/FontLockObserver.cpp)
+    target_include_directories(font_lock_observer PRIVATE ${LIBS_INCLUDE_DIR})
+    set_target_properties(font_lock_observer PROPERTIES POSITION_INDEPENDENT_CODE ON CXX_VISIBILITY_PRESET default)
+    get_target_property(fontOutlineSources libSceFont SOURCES)
+    add_test_executable(font_outline_serialization_tests ${LIBS_INCLUDE_DIR}/tests/FontOutlineSerialization.cpp ${fontOutlineSources})
+    target_compile_definitions(font_outline_serialization_tests PRIVATE ANYPS5_FONT_LOCK_OBSERVER)
+    target_include_directories(font_outline_serialization_tests PRIVATE ${LIBS_INCLUDE_DIR})
+    target_link_libraries(font_outline_serialization_tests PRIVATE libSceFontFt freetype libc font_lock_observer)
+    configure_windows_unwind(font_outline_serialization_tests)
+    add_test(NAME font_outline_serialization COMMAND font_outline_serialization_tests)
+    set_tests_properties(font_outline_serialization PROPERTIES TIMEOUT 30)
+    if(WIN32)
+        set_tests_properties(font_outline_serialization PROPERTIES ENVIRONMENT_MODIFICATION
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceFontFt>"
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
+    endif()
+    add_test_executable(font_outline_shared_tests ${LIBS_INCLUDE_DIR}/tests/FontOutlineShared.cpp)
+    target_include_directories(font_outline_shared_tests PRIVATE ${LIBS_INCLUDE_DIR})
+    target_link_libraries(font_outline_shared_tests PRIVATE libSceFont libSceFontFt libc)
+    configure_windows_unwind(font_outline_shared_tests)
+    add_test(NAME font_outline_shared COMMAND font_outline_shared_tests)
+    set_tests_properties(font_outline_shared PROPERTIES TIMEOUT 30)
+    if(WIN32)
+        set_tests_properties(font_outline_shared PROPERTIES ENVIRONMENT_MODIFICATION
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceFont>"
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceFontFt>"
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
+    endif()
+    add_sce_font_library(font_outline_observed)
+    target_link_libraries(font_outline_observed PRIVATE font_lock_observer)
+    target_compile_definitions(font_outline_observed PRIVATE ANYPS5_FONT_LOCK_OBSERVER)
+    add_test_executable(font_outline_observed_shared_tests ${LIBS_INCLUDE_DIR}/tests/FontOutlineShared.cpp)
+    target_compile_definitions(font_outline_observed_shared_tests PRIVATE ANYPS5_FONT_LOCK_OBSERVER)
+    target_include_directories(font_outline_observed_shared_tests PRIVATE ${LIBS_INCLUDE_DIR})
+    target_link_libraries(font_outline_observed_shared_tests PRIVATE font_outline_observed libSceFontFt libc)
+    configure_windows_unwind(font_outline_observed_shared_tests)
+    add_test(NAME font_outline_observed_shared COMMAND font_outline_observed_shared_tests)
+    set_tests_properties(font_outline_observed_shared PROPERTIES TIMEOUT 30)
+    if(WIN32)
+        set_tests_properties(font_outline_observed_shared PROPERTIES ENVIRONMENT_MODIFICATION
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:font_outline_observed>"
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceFontFt>"
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
+    endif()
 endif()

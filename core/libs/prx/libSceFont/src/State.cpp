@@ -15,6 +15,9 @@
 #include "prx/libc/include/PreciseWait.hpp"
 #include "prx/libSceFont/include/FontFreeType.hpp"
 #include "prx/libSceFont/include/FontInternal.hpp"
+#ifdef ANYPS5_FONT_LOCK_OBSERVER
+#include "tests/FontLockObserver.hpp"
+#endif
 
 namespace {
 
@@ -44,6 +47,9 @@ bool AcquireMagicLock(std::uint32_t& word, const std::uint16_t& magic, std::uint
                 return true;
             }
         }
+#ifdef ANYPS5_FONT_LOCK_OBSERVER
+        if ((current & Font::LOCK_BIT) != 0 && expectedMagic == Font::HANDLE_MAGIC) FontTestObserveOwnerContention_nid_no_patch(&word);
+#endif
         Font::Backoff();
     }
 }
