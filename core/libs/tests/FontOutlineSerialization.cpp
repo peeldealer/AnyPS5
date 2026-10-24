@@ -5,6 +5,7 @@
 #include <barrier>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <string>
 #include <thread>
