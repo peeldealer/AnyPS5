@@ -2,6 +2,8 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdlib>
+#include <cstring>
+#include <stdexcept>
 #include <future>
 #include <thread>
 
@@ -86,6 +88,68 @@ static ReportedAttributes Query(Pthread thread) {
     Require(scePthreadAttrGetdetachstate(&attr, &reported.detachState) == SCE_OK);
     Require(scePthreadAttrDestroy(&attr) == SCE_OK);
     return reported;
+}
+
+extern "C" {
+int APS5_VABI pthread_attr_setaffinity_np_nid_postfix(PthreadAttr* attr, std::size_t cpusetSize, const void* cpuset);
+int APS5_VABI pthread_attr_getaffinity_np_nid_postfix(const PthreadAttr* attr, std::size_t cpusetSize, void* cpuset);
+int APS5_VABI pthread_attr_init_nid_postfix(PthreadAttr* attr);
+int APS5_VABI pthread_attr_destroy_nid_postfix(PthreadAttr* attr);
+int APS5_VABI scePthreadAttrGetaffinity(const PthreadAttr* attr, KernelCpumask* mask);
+}
+
+static void CheckAttrAffinity() {
+    constexpr int GuestEinval = 22;
+    constexpr int GuestErange = 34;
+    PthreadAttr empty = nullptr;
+    unsigned char set[40] = {};
+    unsigned char got[40] = {};
+    if (pthread_attr_setaffinity_np_nid_postfix(nullptr, 32, set) != GuestEinval) std::abort();
+    if (pthread_attr_setaffinity_np_nid_postfix(&empty, 32, set) != GuestEinval) std::abort();
+    if (pthread_attr_getaffinity_np_nid_postfix(&empty, 32, got) != GuestEinval) std::abort();
+    PthreadAttr attr = nullptr;
+    if (pthread_attr_init_nid_postfix(&attr) != 0) std::abort();
+    if (pthread_attr_getaffinity_np_nid_postfix(&attr, 31, got) != GuestErange) std::abort();
+    std::memset(got, 0x5A, sizeof(got));
+    if (pthread_attr_getaffinity_np_nid_postfix(&attr, 40, got) != 0) std::abort();
+    for (int i = 0; i < 32; ++i) if (got[i] != 0xFF) std::abort();
+    for (int i = 32; i < 40; ++i) if (got[i] != 0) std::abort();
+    set[0] = 0x05;
+    set[1] = 0x10;
+    if (pthread_attr_setaffinity_np_nid_postfix(&attr, 31, set) != GuestErange) std::abort();
+    set[35] = 1;
+    if (pthread_attr_setaffinity_np_nid_postfix(&attr, 40, set) != GuestEinval) std::abort();
+    set[35] = 0;
+    if (pthread_attr_setaffinity_np_nid_postfix(&attr, 40, set) != 0) std::abort();
+    KernelCpumask mask = 0;
+    if (scePthreadAttrGetaffinity(&attr, &mask) != 0 || mask != 0x1005) std::abort();
+    std::memset(got, 0x5A, sizeof(got));
+    if (pthread_attr_getaffinity_np_nid_postfix(&attr, 32, got) != 0) std::abort();
+    if (got[0] != 0x05 || got[1] != 0x10) std::abort();
+    for (int i = 2; i < 32; ++i) if (got[i] != 0) std::abort();
+    if (got[32] != 0x5A) std::abort();
+    set[8] = 1;
+    bool threw = false;
+    try {
+        pthread_attr_setaffinity_np_nid_postfix(&attr, 32, set);
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    if (!threw) std::abort();
+    set[8] = 0;
+    if (pthread_attr_setaffinity_np_nid_postfix(&attr, 0, set) != 0) std::abort();
+    if (pthread_attr_getaffinity_np_nid_postfix(&attr, 32, got) != 0 || got[0] != 0xFF || got[31] != 0xFF) std::abort();
+    if (pthread_attr_setaffinity_np_nid_postfix(&attr, 32, set) != 0) std::abort();
+    if (pthread_attr_setaffinity_np_nid_postfix(&attr, 32, nullptr) != 0) std::abort();
+    if (pthread_attr_getaffinity_np_nid_postfix(&attr, 32, got) != 0 || got[0] != 0xFF) std::abort();
+    threw = false;
+    try {
+        pthread_attr_getaffinity_np_nid_postfix(&attr, 32, nullptr);
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+    if (!threw) std::abort();
+    if (pthread_attr_destroy_nid_postfix(&attr) != 0) std::abort();
 }
 
 static void CheckStackSizeLimit() {
@@ -340,6 +404,7 @@ static void CheckEndedThreads() {
 }
 
 int main() {
+    CheckAttrAffinity();
     CheckStackSizeLimit();
     CheckSoloSched();
     CheckSchedArguments();

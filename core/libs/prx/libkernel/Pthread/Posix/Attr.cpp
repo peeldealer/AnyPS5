@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <cstddef>
+#include <cstring>
 #include <stdexcept>
 #include <string>
 #include "SceTypes.hpp"
@@ -13,12 +14,15 @@ int APS5_VABI scePthreadAttrDestroy(PthreadAttr* attr);
 int APS5_VABI scePthreadAttrSetstacksize(PthreadAttr* attr, std::size_t stacksize);
 int APS5_VABI scePthreadAttrSetstack(PthreadAttr* attr, void* addr, std::size_t size);
 int APS5_VABI scePthreadAttrSetsolosched(PthreadAttr* attr, int solosched);
+int APS5_VABI scePthreadAttrSetaffinity(PthreadAttr* attr, KernelCpumask mask);
 int APS5_VABI sched_get_priority_max_nid_postfix(int policy);
 int APS5_VABI sched_get_priority_min_nid_postfix(int policy);
 }
 
 static constexpr int GuestSchedFifo = 1;
 static constexpr int GuestSchedRr = 3;
+static constexpr std::size_t GuestCpusetBytes = 32;
+static constexpr int GuestErange = 34;
 
 static bool Valid(const PthreadAttr* attr) {
     return attr && *attr;
@@ -157,6 +161,39 @@ int APS5_VABI pthread_attr_setstacksize_nid_postfix(PthreadAttr* attr, size_t st
 int APS5_VABI pthread_attr_setstack_nid_postfix(PthreadAttr* attr, void* stack_addr, size_t stack_size) {
     if (!Valid(attr) || !stack_addr || stack_size < 16384) return PosixThread::GUEST_EINVAL;
     return PosixThread::ToErrno(scePthreadAttrSetstack(attr, stack_addr, stack_size));
+}
+
+int APS5_VABI pthread_attr_setaffinity_np_nid_postfix(PthreadAttr* attr, std::size_t cpusetSize, const void* cpuset) {
+    if (!Valid(attr)) return PosixThread::GUEST_EINVAL;
+    if (cpusetSize == 0 || !cpuset) {
+        (*attr)->_affinity = DEFAULT_THREAD_AFFINITY;
+        (*attr)->_affinityExplicit = false;
+        return 0;
+    }
+    if (cpusetSize < GuestCpusetBytes) return GuestErange;
+    const auto* bytes = static_cast<const unsigned char*>(cpuset);
+    for (std::size_t i = GuestCpusetBytes; i < cpusetSize; ++i)
+        if (bytes[i] != 0) return PosixThread::GUEST_EINVAL;
+    for (std::size_t i = sizeof(KernelCpumask); i < GuestCpusetBytes; ++i)
+        if (bytes[i] != 0) throw std::runtime_error("pthread_attr_setaffinity_np: CPUs above 63 are not modelled");
+    KernelCpumask mask = 0;
+    std::memcpy(&mask, bytes, sizeof(mask));
+    return PosixThread::ToErrno(scePthreadAttrSetaffinity(attr, mask));
+}
+
+int APS5_VABI pthread_attr_getaffinity_np_nid_postfix(const PthreadAttr* attr, std::size_t cpusetSize, void* cpuset) {
+    if (!Valid(attr)) return PosixThread::GUEST_EINVAL;
+    if (cpusetSize < GuestCpusetBytes) return GuestErange;
+    if (!cpuset) throw std::runtime_error("pthread_attr_getaffinity_np: null cpuset");
+    auto* bytes = static_cast<unsigned char*>(cpuset);
+    if ((*attr)->_affinityExplicit) {
+        std::memset(bytes, 0, GuestCpusetBytes);
+        std::memcpy(bytes, &(*attr)->_affinity, sizeof(KernelCpumask));
+    } else {
+        std::memset(bytes, 0xFF, GuestCpusetBytes);
+    }
+    std::memset(bytes + GuestCpusetBytes, 0, cpusetSize - GuestCpusetBytes);
+    return 0;
 }
 
 int APS5_VABI pthread_attr_setsolosched_np_nid_postfix(PthreadAttr* attr, int solosched) {
