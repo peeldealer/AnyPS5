@@ -9,6 +9,8 @@
 #include <stdexcept>
 #include <string>
 
+extern "C" int* APS5_VABI __error_nid_postfix();
+
 namespace {
 
 constexpr int POSIX_EINVAL = 22;
@@ -167,6 +169,25 @@ int APS5_VABI pthread_mutexattr_gettype_nid_postfix(const PthreadMutexattr* attr
     if (!type) throw std::runtime_error("pthread_mutexattr_gettype: null type");
     *type = static_cast<int>((*attr)->type);
     return 0;
+}
+
+int APS5_VABI pthread_mutexattr_setkind_np_nid_postfix(PthreadMutexattr* attr, int kind) {
+    if (!attr || !*attr) {
+        *__error_nid_postfix() = PosixThread::GUEST_EINVAL;
+        return -1;
+    }
+    if (kind < static_cast<int>(MutexType::ErrorCheck) || kind > static_cast<int>(MutexType::Adaptive))
+        throw std::runtime_error("pthread_mutexattr_setkind_np: kind " + std::to_string(kind) + " is not a mutex type");
+    (*attr)->type = static_cast<MutexType>(kind);
+    return 0;
+}
+
+int APS5_VABI pthread_mutexattr_getkind_np_nid_postfix(PthreadMutexattr attr) {
+    if (!attr) {
+        *__error_nid_postfix() = PosixThread::GUEST_EINVAL;
+        return -1;
+    }
+    return static_cast<int>(attr->type);
 }
 
 }
