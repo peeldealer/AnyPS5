@@ -1,11 +1,15 @@
 #include "SceTypes.hpp"
 #include "prx/libc/include/General.hpp"
 #include <cstddef>
+#include <algorithm>
 #include <cstdint>
+#include <cstring>
+#include <string>
 #include <mutex>
 #include <unordered_map>
 #include <unordered_set>
 
+static constexpr int SCE_NP_ERROR_INVALID_ARGUMENT = static_cast<int>(0x80550003);
 static constexpr int SCE_NP_WEBAPI_ERROR_INVALID_ARGUMENT = static_cast<int>(0x80552902);
 static constexpr int SCE_NP_WEBAPI_ERROR_LIB_CONTEXT_NOT_FOUND = static_cast<int>(0x80552904);
 static constexpr int SCE_NP_WEBAPI_ERROR_PUSH_EVENT_FILTER_NOT_FOUND = static_cast<int>(0x8055290B);
@@ -15,6 +19,35 @@ static constexpr int SCE_NP_WEBAPI_ERROR_SIGNED_IN_USER_NOT_FOUND = static_cast<
 static constexpr int SCE_NP_WEBAPI_ERROR_LIB_CONTEXT_MAX = static_cast<int>(0x8055291A);
 
 namespace {
+struct WebApiNpId {
+    NpOnlineId handle;
+    std::uint8_t opt[8];
+    std::uint8_t reserved[8];
+};
+static_assert(sizeof(WebApiNpId) == 36);
+
+std::string DecodeBase64(const char* text) {
+    std::string out;
+    int buffer = 0;
+    int bits = 0;
+    for (; *text != '\0' && *text != '='; ++text) {
+        const char character = *text;
+        int value = -1;
+        if (character >= 'A' && character <= 'Z') value = character - 'A';
+        else if (character >= 'a' && character <= 'z') value = character - 'a' + 26;
+        else if (character >= '0' && character <= '9') value = character - '0' + 52;
+        else if (character == '+') value = 62;
+        else if (character == '/') value = 63;
+        if (value < 0) continue;
+        buffer = (buffer << 6) | value;
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            out.push_back(static_cast<char>((buffer >> bits) & 0xFF));
+        }
+    }
+    return out;
+}
 
 struct LibraryContext {
     int libHttpCtxId;
@@ -173,8 +206,22 @@ int APS5_VABI sceNpWebApiUnregisterServicePushEventCallback() {
     return 0;
 }
 
-int APS5_VABI sceNpWebApiUtilityParseNpId() {
-    NotImplemented_nid_no_patch(__func__);
+int APS5_VABI sceNpWebApiUtilityParseNpId(const char* jsonNpId, WebApiNpId* npId) {
+    if (jsonNpId == nullptr) return SCE_NP_ERROR_INVALID_ARGUMENT;
+    const std::string decoded = DecodeBase64(jsonNpId);
+    const std::size_t at = decoded.find('@');
+    const std::string handle = decoded.substr(0, at);
+    std::string opt;
+    if (at != std::string::npos) {
+        for (std::size_t index = at + 1; index < decoded.size(); ++index)
+            if (decoded[index] != '/' && decoded[index] != '.') opt.push_back(decoded[index]);
+    }
+    if (npId != nullptr) {
+        std::memset(npId, 0, sizeof(WebApiNpId));
+        std::memcpy(npId->handle.data, handle.data(), std::min<std::size_t>(handle.size(), 16));
+        std::memcpy(npId->opt, opt.data(), std::min(opt.size(), sizeof(npId->opt)));
+        npId->reserved[0] = 1;
+    }
     return 0;
 }
 

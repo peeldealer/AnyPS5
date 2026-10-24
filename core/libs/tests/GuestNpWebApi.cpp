@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 extern "C" {
 int APS5_VABI sceNpWebApiInitialize(int libHttpCtxId, std::size_t poolSize);
@@ -12,6 +13,7 @@ int APS5_VABI sceNpWebApiCreatePushEventFilter(int libCtxId, const void* filterP
 int APS5_VABI sceNpWebApiDeletePushEventFilter(int libCtxId, int filterId);
 int APS5_VABI sceNpWebApiCreateServicePushEventFilter(int libCtxId, int handleId, const char* npServiceName, unsigned npServiceLabel, const void* filterParam, std::size_t filterParamNum);
 int APS5_VABI sceNpWebApiDeleteServicePushEventFilter(int libCtxId, int filterId);
+int APS5_VABI sceNpWebApiUtilityParseNpId(const char* jsonNpId, void* npId);
 }
 
 namespace {
@@ -32,7 +34,38 @@ void Require(bool condition, const char* message) {
 
 }
 
+struct ParseCase {
+    const char* encoded;
+    const char* handle;
+    const char* opt;
+};
+
+void CheckParseNpId() {
+    constexpr int NpInvalidArgument = static_cast<int>(0x80550003u);
+    const ParseCase cases[] = {
+    {"cGxheWVyX29uZUBiNy9rMi5lNQ==", "player_one", "b7k2e5"},
+    {"bm9fc2VwYXJhdG9y", "no_separator", ""},
+    {"YV9oYW5kbGVfbG9uZ2VyX3RoYW5fMTZAYWJjZGVmZ2hpag==", "a_handle_longer_", "abcdefgh"},
+        {"cGxh \neWVyX29uZUBiNy9rMi5lNQ==", "player_one", "b7k2e5"},
+    };
+    for (const ParseCase& item : cases) {
+        unsigned char npId[36];
+        std::memset(npId, 0xAA, sizeof(npId));
+        Require(sceNpWebApiUtilityParseNpId(item.encoded, npId) == 0, "ParseNpId accepts encoded input");
+        unsigned char expected[36] = {};
+        std::memcpy(expected, item.handle, std::strlen(item.handle));
+        std::memcpy(expected + 20, item.opt, std::strlen(item.opt));
+        expected[28] = 1;
+        Require(std::memcmp(npId, expected, sizeof(npId)) == 0, "ParseNpId fills handle, opt and reserved flag");
+    }
+    unsigned char untouched[36];
+    std::memset(untouched, 0xAA, sizeof(untouched));
+    Require(sceNpWebApiUtilityParseNpId(nullptr, untouched) == NpInvalidArgument && untouched[0] == 0xAA, "ParseNpId rejects null input");
+    Require(sceNpWebApiUtilityParseNpId("eEB5", nullptr) == 0, "ParseNpId accepts a null output");
+}
+
 int main() {
+    CheckParseNpId();
     const int context = sceNpWebApiInitialize(1, 0x10000);
     Require(context > 0 && context <= 0x7fff, "library context id out of range");
     const int other = sceNpWebApiInitialize(1, 0x10000);
