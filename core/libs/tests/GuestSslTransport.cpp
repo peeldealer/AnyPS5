@@ -37,6 +37,7 @@ constexpr int ParallelConnections = 4;
 constexpr int ErrorInvalidId = static_cast<int>(0x8095f006);
 constexpr int ErrorInvalidValue = static_cast<int>(0x8095f007);
 constexpr int ErrorCnCheck = static_cast<int>(0x8095f00b);
+constexpr int ErrorInvalidCert = static_cast<int>(0x8095f00a);
 constexpr int ErrorUnknownCa = static_cast<int>(0x8095f00c);
 constexpr int ErrorNotAfterCheck = static_cast<int>(0x8095f00d);
 constexpr int ErrorNotBeforeCheck = static_cast<int>(0x8095f00e);
@@ -383,8 +384,15 @@ int main(int argc, char** argv) {
 
     const int mismatchSocket = sockets.Open(server.port);
     const int mismatch = sceSslCreateConnection(context, mismatchSocket, "example.com");
+    int sslError = -1;
+    int sslFailed = -1;
+    Require(Throws([&] { sceSslGetSslError(mismatch, &sslError, &sslFailed); }), "an error was reported before verification");
     Require(sceSslConnect(mismatch) == ErrorCnCheck, "a certificate for another host passed the host name check");
     Require(sceSslConnect(mismatch) == ErrorCnCheck, "a second connect did not repeat the host name result");
+    Require(sceSslGetSslError(mismatch, &sslError, &sslFailed) == 0 && sslError == ErrorInvalidCert && sslFailed == static_cast<int>(CnCheck),
+        "the failed host name check was not reported as INVALID_CERT with the CN_CHECK bit");
+    Require(Throws([&] { sceSslGetSslError(mismatch, nullptr, &sslFailed); }), "a null error output was accepted");
+    Require(Throws([&] { sceSslGetSslError(99999, &sslError, &sslFailed); }), "an unknown connection was accepted");
     Require(Throws([&] { sceSslRead(mismatch, root.data(), 1, 0); }), "a failed verification left the connection usable");
     Require(sceSslDeleteConnection(mismatch) == 0 && sockets.Close(mismatchSocket) == 0, "release the mismatched connection");
 
@@ -392,6 +400,7 @@ int main(int argc, char** argv) {
     const int lenient = sceSslCreateConnection(context, lenientSocket, "example.com");
     Require(sceSslDisableVerifyOption(lenient, CnCheck) == 0, "disable the host name check");
     Require(sceSslConnect(lenient) == 0, "a disabled host name check still failed the handshake");
+    Require(Throws([&] { sceSslGetSslError(lenient, &sslError, &sslFailed); }), "an error was reported for a chain that passed");
     Require(sceSslDeleteConnection(lenient) == 0 && sockets.Close(lenientSocket) == 0, "release the lenient connection");
 
     CallbackRecord rejecting{context, -1};

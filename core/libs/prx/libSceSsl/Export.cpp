@@ -1325,8 +1325,21 @@ int APS5_VABI sceSslGetPeerCert() {
     return 0;
 }
 
-int APS5_VABI sceSslGetSslError() {
-    NotImplemented_nid_no_patch(__func__);
+int APS5_VABI sceSslGetSslError(int sslConnectionId, int* error, int* failedOptions) {
+    std::shared_ptr<Session> session;
+    {
+        std::lock_guard lock(State().mutex);
+        const auto& connection = RequireConnection(__func__, sslConnectionId);
+        if (connection.verifyCallback) throw std::runtime_error("sceSslGetSslError: with a verify callback set the console's answer is unknown");
+        session = connection.session;
+    }
+    if (!error || !failedOptions) throw std::invalid_argument("sceSslGetSslError: null output");
+    if (!session) throw std::runtime_error("sceSslGetSslError: before verification the console's answer is unknown");
+    std::lock_guard sessionLock(session->mutex);
+    if (!session->verified || session->verifyResult != ErrorCnCheck || session->failedOptions != FlagCnCheck)
+        throw std::runtime_error("sceSslGetSslError: only a failed host name check was measured; the console's answer here is unknown");
+    *error = ErrorInvalidCert;
+    *failedOptions = static_cast<int>(session->failedOptions);
     return 0;
 }
 
